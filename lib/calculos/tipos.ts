@@ -99,6 +99,10 @@ export interface ResultadoFiniquito {
   otrosDescuentos: number;
   asignacionFamiliar: number;
 
+  // Impuesto segunda categoría
+  tributaImpuesto: boolean;
+  impuestoRenta: number;
+
   // Totales
   totalBruto: number;
   totalLiquido: number;

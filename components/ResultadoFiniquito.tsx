@@ -19,11 +19,13 @@ export default function ResultadoFiniquito({ resultado, esAdmin, fmt, onVolver }
   if (!esAdmin) {
     return (
       <div className="space-y-6">
-        <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center space-y-2">
-          <p className="text-sm text-green-700 font-medium">Monto total que te corresponde</p>
+        <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center space-y-3">
+          <p className="text-sm text-green-700 font-medium uppercase tracking-wide">
+            Podrias llegar a demandar al dia de hoy por
+          </p>
           <p className="text-4xl font-bold text-green-800">{fmt(totalConNulidad)}</p>
           <p className="text-xs text-gray-500">
-            Incluye {diasNulidad} dia{diasNulidad !== 1 ? "s" : ""} de nulidad del despido
+            Este monto considera todos los conceptos legales que te corresponden
           </p>
         </div>
         <button
@@ -81,6 +83,13 @@ export default function ResultadoFiniquito({ resultado, esAdmin, fmt, onVolver }
         )}
         {num(resultado.asignacionFamiliar) > 0 && (
           <Row label="Asignacion familiar (no cotizable)" value={fmt(num(resultado.asignacionFamiliar))} />
+        )}
+        {!!resultado.tributaImpuesto && (
+          <Row
+            label={`(-) Impuesto 2a categoria (renta imponible ${fmt(num(resultado.remuneracionImponibleTotal))})`}
+            value={`-${fmt(num(resultado.impuestoRenta))}`}
+            negative
+          />
         )}
         {num(resultado.anticipoSueldo) > 0 && (
           <Row label="(-) Anticipo de sueldo" value={`-${fmt(num(resultado.anticipoSueldo))}`} negative />

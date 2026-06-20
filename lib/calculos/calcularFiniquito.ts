@@ -4,6 +4,7 @@ import { calcularDiasNulidad } from "./nulidad";
 import { calcularIndemnizacionAnosServicio, calcularAvisoPrevio } from "./indemnizacion";
 import { calcularRemuneracionUltimosDias, valorDia } from "./remuneracion";
 import { calcularGratificacionMensual } from "./cotizaciones";
+import { calcularImpuestoRenta, tributaImpuesto } from "./impuesto";
 import type { DatosFiniquito, ResultadoFiniquito } from "./tipos";
 
 export function calcularFiniquito(datos: DatosFiniquito): ResultadoFiniquito {
@@ -79,7 +80,14 @@ export function calcularFiniquito(datos: DatosFiniquito): ResultadoFiniquito {
     valorHoraExtra * datos.horasExtraPermanentes +
     Math.round((valorHoraExtra / 60) * datos.minutosExtraPermanentes);
 
-  // 8. Totales
+  // 8. Impuesto segunda categoría (sobre remuneración imponible neta de cotizaciones)
+  // Base = remuneración imponible - AFP - salud (no incluye AFC ni asignación familiar)
+  // En el finiquito se aplica sobre los ítems tributables: últimos días + feriado
+  const baseImpuesto = remuneracionImponibleTotal;
+  const impuestoRenta = calcularImpuestoRenta(baseImpuesto);
+  const trabajadorTributa = tributaImpuesto(baseImpuesto);
+
+  // 9. Totales
   const totalBruto =
     remUltimosDias +
     feriadoProporcionalMonto +
@@ -88,7 +96,9 @@ export function calcularFiniquito(datos: DatosFiniquito): ResultadoFiniquito {
     montoHorasExtra +
     datos.asignacionFamiliar;
 
-  const totalLiquido = totalBruto - datos.anticipoSueldo - datos.otrosDescuentos;
+  const totalLiquido =
+    totalBruto - datos.anticipoSueldo - datos.otrosDescuentos -
+    (trabajadorTributa ? impuestoRenta : 0);
   const totalConNulidad = totalLiquido + montoNulidad;
 
   // 9. Alertas internas (admin)
@@ -132,6 +142,8 @@ export function calcularFiniquito(datos: DatosFiniquito): ResultadoFiniquito {
     anticipoSueldo: datos.anticipoSueldo,
     otrosDescuentos: datos.otrosDescuentos,
     asignacionFamiliar: datos.asignacionFamiliar,
+    tributaImpuesto: trabajadorTributa,
+    impuestoRenta,
     totalBruto,
     totalLiquido,
     totalConNulidad,
