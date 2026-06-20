@@ -4,6 +4,7 @@ import { calcularDiasNulidad } from "./nulidad";
 import { calcularIndemnizacionAnosServicio, calcularAvisoPrevio } from "./indemnizacion";
 import { calcularRemuneracionUltimosDias, valorDia } from "./remuneracion";
 import { calcularGratificacionMensual, calcularDescuentos } from "./cotizaciones";
+import { topeGratificacionMensual } from "./jornada";
 import { calcularImpuestoRenta, tributaImpuesto } from "./impuesto";
 import type { DatosFiniquito, ResultadoFiniquito } from "./tipos";
 
@@ -16,9 +17,15 @@ export function calcularFiniquito(datos: DatosFiniquito): ResultadoFiniquito {
     datos.fechaTermino
   );
 
-  // 2. Gratificación mensual (imponible)
+  // Fecha de término como string ISO para consultar tablas de vigencia
+  const fechaTerminoISO = datos.fechaTermino instanceof Date
+    ? datos.fechaTermino.toISOString().split("T")[0]
+    : String(datos.fechaTermino);
+
+  // 2. Gratificación mensual (imponible) — tope según IMM vigente a fecha de término
+  const topeGratif = topeGratificacionMensual(fechaTerminoISO);
   const gratificacionMensual = datos.recibeGratificacion
-    ? calcularGratificacionMensual(datos.sueldoBase, datos.gratificacionMensualFija)
+    ? calcularGratificacionMensual(datos.sueldoBase, datos.gratificacionMensualFija, topeGratif)
     : 0;
 
   // Remuneración imponible total (base para cotizaciones, valor día e indemnizaciones)

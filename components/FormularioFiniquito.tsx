@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { AFP, CausalDespido, TipoSalud } from "@/lib/calculos/tipos";
+import { jornadaMaximaLegal, minimoLegalAplicable } from "@/lib/calculos/jornada";
 import ResultadoFiniquito from "./ResultadoFiniquito";
 
 function Tooltip({ text }: { text: string }) {
@@ -81,9 +82,6 @@ export default function FormularioFiniquito() {
   const [empresaPagaPasajes, setEmpresaPagaPasajes] = useState<boolean | null>(null);
   const [jornada, setJornada] = useState<"completa" | "parcial" | null>(null);
   const [horasSemana, setHorasSemana] = useState("30");
-
-  // IMM vigente Chile — actualizar cuando cambie el decreto
-  const IMM_VIGENTE = 510_000;
 
   const num = (v: string) => parseInt(v.replace(/\D/g, ""), 10) || 0;
   const fmt = (v: number) =>
@@ -262,33 +260,40 @@ export default function FormularioFiniquito() {
           <h2 className="text-xl font-semibold">Remuneración y previsión</h2>
 
           {/* Jornada laboral — debe responderse primero */}
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              ¿Cuál es tu jornada laboral?
-              <Tooltip text="La jornada determina el sueldo mínimo legal que te corresponde. Jornada completa = 45 horas semanales. Si trabajas menos horas, el mínimo se calcula en proporción." />
-            </label>
-            <div className="flex gap-3">
-              <button className={btnYN(jornada === "completa")} onClick={() => setJornada("completa")}>Completa (45 hrs)</button>
-              <button className={btnYN(jornada === "parcial")} onClick={() => setJornada("parcial")}>Parcial</button>
-            </div>
-            {jornada === "parcial" && (
-              <div className="mt-2">
+          {(() => {
+            const jornadaMax = jornadaMaximaLegal(fechaTermino || new Date().toISOString().split("T")[0]);
+            return (
+              <div>
                 <label className="block text-sm font-medium mb-1">
-                  Horas semanales pactadas en contrato
-                  <Tooltip text="Las horas semanales que figuran en tu contrato. Deben ser al menos 20 horas para tener derecho al sueldo mínimo proporcional." />
+                  ¿Cuál es tu jornada laboral?
+                  <Tooltip text={`La jornada máxima legal vigente a la fecha de tu despido es ${jornadaMax} horas semanales (Ley 21.561). Si trabajas menos horas, el mínimo legal se calcula en proporción.`} />
                 </label>
-                <input
-                  className={inputCls}
-                  type="number"
-                  placeholder="Ej: 30"
-                  value={horasSemana}
-                  onChange={(e) => setHorasSemana(e.target.value)}
-                  min="1"
-                  max="44"
-                />
+                <div className="flex gap-3">
+                  <button className={btnYN(jornada === "completa")} onClick={() => setJornada("completa")}>
+                    Completa ({jornadaMax} hrs)
+                  </button>
+                  <button className={btnYN(jornada === "parcial")} onClick={() => setJornada("parcial")}>Parcial</button>
+                </div>
+                {jornada === "parcial" && (
+                  <div className="mt-2">
+                    <label className="block text-sm font-medium mb-1">
+                      Horas semanales pactadas en contrato
+                      <Tooltip text={`Si trabajas más de 30 hrs semanales te corresponde el sueldo mínimo íntegro ($${minimoLegalAplicable(31, fechaTermino || new Date().toISOString().split("T")[0]).toLocaleString("es-CL")}). Si trabajas 30 hrs o menos, se calcula en proporción a las ${jornadaMax} hrs de jornada completa.`} />
+                    </label>
+                    <input
+                      className={inputCls}
+                      type="number"
+                      placeholder="Ej: 30"
+                      value={horasSemana}
+                      onChange={(e) => setHorasSemana(e.target.value)}
+                      min="1"
+                      max={jornadaMax - 1}
+                    />
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            );
+          })()}
 
           {/* Resto del paso visible solo después de seleccionar jornada */}
           {jornada && (
@@ -300,8 +305,11 @@ export default function FormularioFiniquito() {
             </label>
             <input className={inputCls} type="number" placeholder="Ej: 800000" value={sueldoBase} onChange={(e) => setSueldoBase(e.target.value)} />
             {(() => {
-              const horas = jornada === "completa" ? 45 : (parseInt(horasSemana) || 45);
-              const minimoLegal = Math.round(IMM_VIGENTE * (horas / 45));
+              const fechaRef = fechaTermino || new Date().toISOString().split("T")[0];
+              const horas = jornada === "completa"
+                ? jornadaMaximaLegal(fechaRef)
+                : (parseInt(horasSemana) || 30);
+              const minimoLegal = minimoLegalAplicable(horas, fechaRef);
               const sueldo = num(sueldoBase);
               if (sueldo > 0 && sueldo < minimoLegal) {
                 return (

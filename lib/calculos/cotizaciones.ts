@@ -14,22 +14,20 @@ const TASAS_AFP: Record<AFP, number> = {
 const TASA_FONASA = 0.07;
 const TASA_AFC_TRABAJADOR = 0.006; // contrato indefinido
 
-// IMM vigente 2025 y tope de gratificación mensual legal (Art. 50 CT)
-const IMM_2025 = 510_000;
-export const TOPE_GRATIFICACION_MENSUAL = Math.round((IMM_2025 * 4.75) / 12); // ≈ $201,875
-
 /**
  * Gratificación mensual legal (Art. 50 CT):
- * min(sueldoBase × 25%, tope IMM)
+ * min(sueldoBase × 25%, 4,75 IMM / 12)
  * Es remuneración imponible — afecta AFP, salud y AFC.
  * Si gratificacionFija > 0 se usa ese valor en lugar del cálculo automático.
+ * El tope se calcula con el IMM vigente a la fecha de término (ver jornada.ts).
  */
 export function calcularGratificacionMensual(
   sueldoBase: number,
-  gratificacionFija: number
+  gratificacionFija: number,
+  topeGratificacion: number
 ): number {
   if (gratificacionFija > 0) return gratificacionFija;
-  return Math.min(Math.round(sueldoBase * 0.25), TOPE_GRATIFICACION_MENSUAL);
+  return Math.min(Math.round(sueldoBase * 0.25), topeGratificacion);
 }
 
 export interface DescuentosCalculados {
