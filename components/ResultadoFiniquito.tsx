@@ -35,11 +35,16 @@ export default function ResultadoFiniquito({ resultado, esAdmin, fmt, onVolver, 
         )}
         <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center space-y-3">
           <p className="text-sm text-green-700 font-medium uppercase tracking-wide">
-            Podrias llegar a demandar al dia de hoy por
+            Podrías llegar a demandar al día de hoy por
           </p>
           <p className="text-4xl font-bold text-green-800">{fmt(totalConNulidad)}</p>
+          {diasNulidad > 0 && (
+            <p className="text-xs text-green-700 font-medium bg-green-100 rounded-lg px-3 py-1.5 inline-block">
+              Incluye {diasNulidad} días de nulidad del despido
+            </p>
+          )}
           <p className="text-xs text-gray-500">
-            Este monto considera todos los conceptos legales que te corresponden
+            Finiquito + indemnizaciones + todos los conceptos legales que te corresponden
           </p>
         </div>
         <button

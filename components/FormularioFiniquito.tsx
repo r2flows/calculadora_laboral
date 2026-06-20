@@ -4,6 +4,17 @@ import { useState } from "react";
 import type { AFP, CausalDespido, TipoSalud } from "@/lib/calculos/tipos";
 import ResultadoFiniquito from "./ResultadoFiniquito";
 
+function Tooltip({ text }: { text: string }) {
+  return (
+    <span className="relative group inline-block ml-1 align-middle">
+      <span className="cursor-help text-gray-400 text-xs border border-gray-300 rounded-full w-4 h-4 inline-flex items-center justify-center hover:bg-gray-100 select-none">?</span>
+      <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 bg-gray-800 text-white text-xs rounded-lg p-2 opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-lg leading-relaxed">
+        {text}
+      </span>
+    </span>
+  );
+}
+
 const CODIGO_ADMIN = process.env.NEXT_PUBLIC_ADMIN_CODE ?? "ADMIN2024";
 
 const CAUSALES: { value: CausalDespido; label: string }[] = [
@@ -209,15 +220,24 @@ export default function FormularioFiniquito() {
         <div className="space-y-4">
           <h2 className="text-xl font-semibold">Datos del contrato</h2>
           <div>
-            <label className="block text-sm font-medium mb-1">Fecha de inicio (primer día trabajado)</label>
+            <label className="block text-sm font-medium mb-1">
+              Fecha de inicio (primer día trabajado)
+              <Tooltip text="El primer día en que empezaste a trabajar o firmaste contrato. Lo encuentras en tu contrato o en la primera liquidación de sueldo." />
+            </label>
             <input className={inputCls} type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Fecha de término (día del despido)</label>
+            <label className="block text-sm font-medium mb-1">
+              Fecha de término (día del despido)
+              <Tooltip text="El día en que te comunicaron el despido. Es la fecha que figura en la carta de aviso o en el finiquito que te entregaron." />
+            </label>
             <input className={inputCls} type="date" value={fechaTermino} onChange={(e) => setFechaTermino(e.target.value)} />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Causal de término</label>
+            <label className="block text-sm font-medium mb-1">
+              Causal de término
+              <Tooltip text="La razón legal del despido que figura en tu carta de aviso. Si no la tienes, elige la que mejor describe tu situación. Art. 161 es el más común en despidos por la empresa." />
+            </label>
             <select className={inputCls} value={causal} onChange={(e) => setCausal(e.target.value as CausalDespido)}>
               {CAUSALES.map((c) => (
                 <option key={c.value} value={c.value}>{c.label}</option>
@@ -236,11 +256,17 @@ export default function FormularioFiniquito() {
         <div className="space-y-4">
           <h2 className="text-xl font-semibold">Remuneración y previsión</h2>
           <div>
-            <label className="block text-sm font-medium mb-1">Sueldo base mensual ($)</label>
+            <label className="block text-sm font-medium mb-1">
+              Sueldo base mensual ($)
+              <Tooltip text="El monto fijo mensual acordado en tu contrato, antes de descuentos. No incluyas bonos variables ni horas extra. Aparece en tus liquidaciones como 'Sueldo Base'." />
+            </label>
             <input className={inputCls} type="number" placeholder="Ej: 800000" value={sueldoBase} onChange={(e) => setSueldoBase(e.target.value)} />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">¿Recibe gratificacion mensual?</label>
+            <label className="block text-sm font-medium mb-1">
+              ¿Recibe gratificacion mensual?
+              <Tooltip text="La gratificación es un beneficio obligatorio por ley equivalente al 25% del sueldo (tope $201.875/mes). Muchas empresas la pagan mensualmente junto con el sueldo." />
+            </label>
             <p className="text-xs text-gray-500 mb-1">La gratificacion legal es el 25% del sueldo base con tope de $201.875 mensual (4,75 IMM/12).</p>
             <div className="flex gap-3">
               <button className={btnYN(recibeGratificacion === true)} onClick={() => setRecibeGratificacion(true)}>Si</button>
@@ -254,7 +280,10 @@ export default function FormularioFiniquito() {
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Movilización ($)</label>
+            <label className="block text-sm font-medium mb-1">
+              Movilización mensual ($)
+              <Tooltip text="Monto mensual que la empresa te entrega para cubrir el traslado al trabajo. No forma parte del sueldo imponible si es razonable. Aparece en tu liquidación como 'Asig. Movilización'." />
+            </label>
             <input className={inputCls} type="number" placeholder="0" value={movilizacion} onChange={(e) => verificarMovilizacion(e.target.value)} />
             {movilizacionAlerta === "advertencia" && (
               <p className="text-red-600 text-xs mt-1">Advertencia: monto supera $50.000 — podria existir evasion de cotizaciones.</p>
@@ -282,20 +311,29 @@ export default function FormularioFiniquito() {
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Colacion ($)</label>
+            <label className="block text-sm font-medium mb-1">
+              Colación mensual ($)
+              <Tooltip text="Monto mensual que la empresa te da para alimentación. No es cotizable si está dentro de rangos normales. Aparece en tu liquidación como 'Asig. Colación'." />
+            </label>
             <input className={inputCls} type="number" placeholder="0" value={colacion} onChange={(e) => setColacion(e.target.value)} />
             {num(colacion) > 30000 && (
               <p className="text-red-600 text-xs mt-1">Advertencia: colacion supera $30.000 — posible evasion de cotizaciones.</p>
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">AFP</label>
+            <label className="block text-sm font-medium mb-1">
+              AFP
+              <Tooltip text="La administradora de fondos de pensiones donde cotizas. Aparece en tus liquidaciones de sueldo. Si no recuerdas, puedes consultarlo en el sitio de la Superintendencia de Pensiones." />
+            </label>
             <select className={inputCls} value={afp} onChange={(e) => setAfp(e.target.value as AFP)}>
               {AFPS.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Salud</label>
+            <label className="block text-sm font-medium mb-1">
+              Salud
+              <Tooltip text="Si cotizas en Fonasa (sistema público) o en una Isapre (sistema privado). Lo encuentras en tu liquidación de sueldo en el descuento de salud." />
+            </label>
             <div className="flex gap-3">
               <button className={btnYN(tipoSalud === "Fonasa")} onClick={() => setTipoSalud("Fonasa")}>Fonasa</button>
               <button className={btnYN(tipoSalud === "Isapre")} onClick={() => setTipoSalud("Isapre")}>Isapre</button>
@@ -316,20 +354,29 @@ export default function FormularioFiniquito() {
         <div className="space-y-4">
           <h2 className="text-xl font-semibold">Vacaciones</h2>
           <div>
-            <p className="text-sm text-gray-600 mb-2">¿Tiene feriado progresivo (mas de 15 dias de vacaciones)?</p>
-            <div className="flex gap-3">
-              <button className={btnYN(tieneProgresivo)} onClick={() => setTieneProgresivo(true)}>Si</button>
-              <button className={btnYN(!tieneProgresivo)} onClick={() => setTieneProgresivo(false)}>No</button>
-            </div>
-            {tieneProgresivo && (
-              <div className="mt-2">
-                <label className="block text-sm font-medium mb-1">Dias de vacaciones anuales</label>
-                <input className={inputCls} type="number" value={diasVacaciones} onChange={(e) => setDiasVacaciones(e.target.value)} min="15" />
-              </div>
+            <label className="block text-sm font-medium mb-1">
+              ¿Cuantos dias de vacaciones al año te corresponden?
+              <Tooltip text="La ley establece un mínimo de 15 días hábiles. Si llevas más de 10 años trabajando en total (sumando todos tus empleos anteriores), puede ser más. Revisa tu contrato o consulta con RRHH." />
+            </label>
+            <input
+              className={inputCls}
+              type="number"
+              value={diasVacaciones}
+              onChange={(e) => {
+                setDiasVacaciones(e.target.value);
+                setTieneProgresivo(parseInt(e.target.value) > 15);
+              }}
+              min="15"
+            />
+            {parseInt(diasVacaciones) > 15 && (
+              <p className="text-xs text-blue-600 mt-1">Feriado progresivo aplicado ({diasVacaciones} dias habiles).</p>
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Dias habiles de vacaciones ya gozados durante el contrato</label>
+            <label className="block text-sm font-medium mb-1">
+              Dias habiles de vacaciones ya gozados durante el contrato
+              <Tooltip text="Los días hábiles (lunes a viernes, sin feriados) de vacaciones que efectivamente disfrutaste en este trabajo. Se restan del proporcional que te corresponde al término. Si no recuerdas, pon 0 y se calculará a tu favor." />
+            </label>
             <p className="text-xs text-gray-500 mb-1">Ingrese 0 si no tomo vacaciones o no recuerda. Estos dias se descontaran del feriado proporcional.</p>
             <input className={inputCls} type="number" placeholder="0" value={diasVacacionesTomados} onChange={(e) => setDiasVacacionesTomados(e.target.value)} min="0" />
           </div>
@@ -346,6 +393,7 @@ export default function FormularioFiniquito() {
           <h2 className="text-xl font-semibold">Pago del ultimo mes</h2>
           <p className="text-sm text-gray-600">
             ¿Ya le cancelaron la remuneracion de los dias trabajados el mes en que fue despedido?
+            <Tooltip text="Si te despidieron a mediados de mes, la empresa debe pagarte los días trabajados de ese mes. Si ya lo recibiste en tu último depósito, marca Sí. Si no, lo incluiremos en el cálculo." />
           </p>
           <div className="flex gap-3">
             <button className={btnYN(reciboUltimoMes === true)} onClick={() => setReciboUltimoMes(true)}>Si</button>
@@ -368,19 +416,31 @@ export default function FormularioFiniquito() {
         <div className="space-y-4">
           <h2 className="text-xl font-semibold">Descuentos y horas extra</h2>
           <div>
-            <label className="block text-sm font-medium mb-1">¿Recibio anticipo de sueldo? Monto ($) — deje en 0 si no</label>
+            <label className="block text-sm font-medium mb-1">
+              ¿Recibio anticipo de sueldo? Monto ($) — deje en 0 si no
+              <Tooltip text="Si recibiste un adelanto de sueldo durante el mes del despido, indícalo aquí. Se descontará del total a pagar porque ya lo recibiste." />
+            </label>
             <input className={inputCls} type="number" placeholder="0" value={anticipo} onChange={(e) => setAnticipo(e.target.value)} />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Otros descuentos del mes ($)</label>
+            <label className="block text-sm font-medium mb-1">
+              Otros descuentos del mes ($)
+              <Tooltip text="Cualquier descuento adicional del mes: cuota de crédito con la empresa, arriendo de casa patronal, etc. No incluyas AFP ni salud, esos se calculan automáticamente." />
+            </label>
             <input className={inputCls} type="number" placeholder="0" value={otrosDescuentos} onChange={(e) => setOtrosDescuentos(e.target.value)} />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Horas extra permanentes por mes</label>
+            <label className="block text-sm font-medium mb-1">
+              Horas extra permanentes por mes
+              <Tooltip text="Las horas extra que realizas regularmente cada mes según pacto escrito con el empleador. Solo incluye las habituales, no las eventuales. Aumentan la base de cálculo de la indemnización." />
+            </label>
             <input className={inputCls} type="number" placeholder="0" value={horasExtra} onChange={(e) => setHorasExtra(e.target.value)} />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Minutos extra permanentes por mes</label>
+            <label className="block text-sm font-medium mb-1">
+              Minutos extra permanentes por mes
+              <Tooltip text="Los minutos adicionales que se suman a las horas extra permanentes. Por ejemplo, si trabajas 1 hora y 30 minutos extra, pon 1 hora y 30 minutos." />
+            </label>
             <input className={inputCls} type="number" placeholder="0" value={minutosExtra} onChange={(e) => setMinutosExtra(e.target.value)} />
           </div>
           <div className="flex gap-3 pt-2">
@@ -395,7 +455,10 @@ export default function FormularioFiniquito() {
         <div className="space-y-4">
           <h2 className="text-xl font-semibold">Beneficios adicionales</h2>
           <div>
-            <label className="block text-sm font-medium mb-1">Asignacion familiar (monto total mensual, $)</label>
+            <label className="block text-sm font-medium mb-1">
+              Asignacion familiar (monto total mensual, $)
+              <Tooltip text="Subsidio estatal que paga la empresa a trabajadores con cargas familiares reconocidas (hijos, cónyuge, etc.). No es parte del sueldo imponible y no afecta el cálculo de la indemnización. Si no la recibes, deja en 0." />
+            </label>
             <p className="text-xs text-gray-500 mb-1">Este monto no es cotizable ni se usa para calcular el valor dia o feriado.</p>
             <input className={inputCls} type="number" placeholder="0" value={asignacionFamiliar} onChange={(e) => setAsignacionFamiliar(e.target.value)} />
           </div>
