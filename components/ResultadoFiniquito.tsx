@@ -53,6 +53,10 @@ export default function ResultadoFiniquito({ resultado, esAdmin, fmt, onVolver }
 
       <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 text-sm">
         <Row label="Meses trabajados" value={`${num(resultado.mesesTrabajados)} meses ${num(resultado.diasTrabajados)} dias`} />
+        <Row label="Remuneracion imponible mensual" value={fmt(num(resultado.remuneracionImponibleTotal))} />
+        {num(resultado.gratificacionMensual) > 0 && (
+          <Row label="  · Gratificacion mensual incluida" value={fmt(num(resultado.gratificacionMensual))} muted />
+        )}
         {num(resultado.remUltimosDias) > 0 && (
           <>
             <Row label="Remuneracion ultimos dias (liquido)" value={fmt(num(resultado.remUltimosDias))} />
@@ -61,7 +65,14 @@ export default function ResultadoFiniquito({ resultado, esAdmin, fmt, onVolver }
             <Row label="  · AFC descontado" value={fmt(cotiz.afc ?? 0)} muted />
           </>
         )}
-        <Row label={`Feriado proporcional (${num(resultado.feriadoProporcionalDias)} dias habiles)`} value={fmt(num(resultado.feriadoProporcionalMonto))} />
+        {num(resultado.feriadoProporcionalDiasDescontados) > 0 ? (
+          <Row
+            label={`Feriado proporcional (${num(resultado.feriadoProporcionalDiasCalculados)} calculados − ${num(resultado.feriadoProporcionalDiasDescontados)} gozados = ${num(resultado.feriadoProporcionalDias)} dias habiles)`}
+            value={fmt(num(resultado.feriadoProporcionalMonto))}
+          />
+        ) : (
+          <Row label={`Feriado proporcional (${num(resultado.feriadoProporcionalDias)} dias habiles)`} value={fmt(num(resultado.feriadoProporcionalMonto))} />
+        )}
         {num(resultado.indemnizacionAvisoPrevio) > 0 && (
           <Row label="Indemnizacion aviso previo" value={fmt(num(resultado.indemnizacionAvisoPrevio))} />
         )}

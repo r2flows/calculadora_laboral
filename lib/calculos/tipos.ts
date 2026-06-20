@@ -42,9 +42,14 @@ export interface DatosFiniquito {
   tipoSalud: TipoSalud;
   montoIsapre: number; // solo si Isapre
 
+  // Gratificación
+  recibeGratificacion: boolean;
+  gratificacionMensualFija: number; // 0 = calcular automático (25% con tope)
+
   // Vacaciones
   tieneProgressivo: boolean;
   diasVacacionesAnuales: number; // 15 por defecto, más si hay progresivo
+  diasVacacionesTomados: number; // días hábiles ya gozados durante el contrato
 
   // Últimos días
   reciboRemuneracionUltimoMes: boolean;
@@ -71,9 +76,15 @@ export interface ResultadoFiniquito {
   mesesTrabajados: number;
   diasTrabajados: number;
 
+  // Remuneración imponible
+  gratificacionMensual: number;
+  remuneracionImponibleTotal: number;
+
   // Ítems brutos
   remUltimosDias: number;
   cotizacionesUltimosDias: DesgloseCotizaciones;
+  feriadoProporcionalDiasCalculados: number;
+  feriadoProporcionalDiasDescontados: number;
   feriadoProporcionalDias: number;
   feriadoProporcionalMonto: number;
   indemnizacionAvisoPrevio: number;

@@ -54,8 +54,11 @@ export default function FormularioFiniquito() {
   const [afp, setAfp] = useState<AFP>("Habitat");
   const [tipoSalud, setTipoSalud] = useState<TipoSalud>("Fonasa");
   const [montoIsapre, setMontoIsapre] = useState("");
+  const [recibeGratificacion, setRecibeGratificacion] = useState<boolean | null>(null);
+  const [gratificacionFija, setGratificacionFija] = useState("");
   const [tieneProgresivo, setTieneProgresivo] = useState(false);
   const [diasVacaciones, setDiasVacaciones] = useState("15");
+  const [diasVacacionesTomados, setDiasVacacionesTomados] = useState("0");
   const [reciboUltimoMes, setReciboUltimoMes] = useState<boolean | null>(null);
   const [anticipo, setAnticipo] = useState("");
   const [otrosDescuentos, setOtrosDescuentos] = useState("");
@@ -116,8 +119,11 @@ export default function FormularioFiniquito() {
         afp,
         tipoSalud,
         montoIsapre: num(montoIsapre),
+        recibeGratificacion: recibeGratificacion ?? false,
+        gratificacionMensualFija: num(gratificacionFija),
         tieneProgressivo: tieneProgresivo,
         diasVacacionesAnuales: parseInt(diasVacaciones) || 15,
+        diasVacacionesTomados: parseInt(diasVacacionesTomados) || 0,
         reciboRemuneracionUltimoMes: reciboUltimoMes ?? true,
         horasExtraPermanentes: num(horasExtra),
         minutosExtraPermanentes: num(minutosExtra),
@@ -234,6 +240,20 @@ export default function FormularioFiniquito() {
             <input className={inputCls} type="number" placeholder="Ej: 800000" value={sueldoBase} onChange={(e) => setSueldoBase(e.target.value)} />
           </div>
           <div>
+            <label className="block text-sm font-medium mb-1">¿Recibe gratificacion mensual?</label>
+            <p className="text-xs text-gray-500 mb-1">La gratificacion legal es el 25% del sueldo base con tope de $201.875 mensual (4,75 IMM/12).</p>
+            <div className="flex gap-3">
+              <button className={btnYN(recibeGratificacion === true)} onClick={() => setRecibeGratificacion(true)}>Si</button>
+              <button className={btnYN(recibeGratificacion === false)} onClick={() => setRecibeGratificacion(false)}>No</button>
+            </div>
+            {recibeGratificacion && (
+              <div className="mt-2 space-y-1">
+                <p className="text-xs text-gray-500">Si la empresa paga un monto fijo distinto al legal, ingresselo. De lo contrario deje en 0 para calcular automaticamente.</p>
+                <input className={inputCls} type="number" placeholder="0 = calcular automatico" value={gratificacionFija} onChange={(e) => setGratificacionFija(e.target.value)} />
+              </div>
+            )}
+          </div>
+          <div>
             <label className="block text-sm font-medium mb-1">Movilización ($)</label>
             <input className={inputCls} type="number" placeholder="0" value={movilizacion} onChange={(e) => verificarMovilizacion(e.target.value)} />
             {movilizacionAlerta === "advertencia" && (
@@ -295,17 +315,24 @@ export default function FormularioFiniquito() {
       {paso === 3 && (
         <div className="space-y-4">
           <h2 className="text-xl font-semibold">Vacaciones</h2>
-          <p className="text-sm text-gray-600">¿Tiene feriado progresivo (mas de 15 dias de vacaciones)?</p>
-          <div className="flex gap-3">
-            <button className={btnYN(tieneProgresivo)} onClick={() => setTieneProgresivo(true)}>Si</button>
-            <button className={btnYN(!tieneProgresivo)} onClick={() => setTieneProgresivo(false)}>No</button>
-          </div>
-          {tieneProgresivo && (
-            <div>
-              <label className="block text-sm font-medium mb-1">Dias de vacaciones anuales</label>
-              <input className={inputCls} type="number" value={diasVacaciones} onChange={(e) => setDiasVacaciones(e.target.value)} min="15" />
+          <div>
+            <p className="text-sm text-gray-600 mb-2">¿Tiene feriado progresivo (mas de 15 dias de vacaciones)?</p>
+            <div className="flex gap-3">
+              <button className={btnYN(tieneProgresivo)} onClick={() => setTieneProgresivo(true)}>Si</button>
+              <button className={btnYN(!tieneProgresivo)} onClick={() => setTieneProgresivo(false)}>No</button>
             </div>
-          )}
+            {tieneProgresivo && (
+              <div className="mt-2">
+                <label className="block text-sm font-medium mb-1">Dias de vacaciones anuales</label>
+                <input className={inputCls} type="number" value={diasVacaciones} onChange={(e) => setDiasVacaciones(e.target.value)} min="15" />
+              </div>
+            )}
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Dias habiles de vacaciones ya gozados durante el contrato</label>
+            <p className="text-xs text-gray-500 mb-1">Ingrese 0 si no tomo vacaciones o no recuerda. Estos dias se descontaran del feriado proporcional.</p>
+            <input className={inputCls} type="number" placeholder="0" value={diasVacacionesTomados} onChange={(e) => setDiasVacacionesTomados(e.target.value)} min="0" />
+          </div>
           <div className="flex gap-3 pt-2">
             <button className={btnSecondary} onClick={retroceder}>Atras</button>
             <button className={btnPrimary} onClick={avanzar}>Continuar</button>
