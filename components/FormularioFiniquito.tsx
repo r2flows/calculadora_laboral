@@ -79,6 +79,11 @@ export default function FormularioFiniquito() {
   const [movilizacionAlerta, setMovilizacionAlerta] = useState<string | null>(null);
   const [viajaRegion, setViajaRegion] = useState<boolean | null>(null);
   const [empresaPagaPasajes, setEmpresaPagaPasajes] = useState<boolean | null>(null);
+  const [jornada, setJornada] = useState<"completa" | "parcial" | null>(null);
+  const [horasSemana, setHorasSemana] = useState("30");
+
+  // IMM vigente Chile — actualizar cuando cambie el decreto
+  const IMM_VIGENTE = 510_000;
 
   const num = (v: string) => parseInt(v.replace(/\D/g, ""), 10) || 0;
   const fmt = (v: number) =>
@@ -255,12 +260,59 @@ export default function FormularioFiniquito() {
       {paso === 2 && (
         <div className="space-y-4">
           <h2 className="text-xl font-semibold">Remuneración y previsión</h2>
+
+          {/* Jornada laboral — debe responderse primero */}
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              ¿Cuál es tu jornada laboral?
+              <Tooltip text="La jornada determina el sueldo mínimo legal que te corresponde. Jornada completa = 45 horas semanales. Si trabajas menos horas, el mínimo se calcula en proporción." />
+            </label>
+            <div className="flex gap-3">
+              <button className={btnYN(jornada === "completa")} onClick={() => setJornada("completa")}>Completa (45 hrs)</button>
+              <button className={btnYN(jornada === "parcial")} onClick={() => setJornada("parcial")}>Parcial</button>
+            </div>
+            {jornada === "parcial" && (
+              <div className="mt-2">
+                <label className="block text-sm font-medium mb-1">
+                  Horas semanales pactadas en contrato
+                  <Tooltip text="Las horas semanales que figuran en tu contrato. Deben ser al menos 20 horas para tener derecho al sueldo mínimo proporcional." />
+                </label>
+                <input
+                  className={inputCls}
+                  type="number"
+                  placeholder="Ej: 30"
+                  value={horasSemana}
+                  onChange={(e) => setHorasSemana(e.target.value)}
+                  min="1"
+                  max="44"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Resto del paso visible solo después de seleccionar jornada */}
+          {jornada && (
+          <>
           <div>
             <label className="block text-sm font-medium mb-1">
               Sueldo base mensual ($)
               <Tooltip text="El monto fijo mensual acordado en tu contrato, antes de descuentos. No incluyas bonos variables ni horas extra. Aparece en tus liquidaciones como 'Sueldo Base'." />
             </label>
             <input className={inputCls} type="number" placeholder="Ej: 800000" value={sueldoBase} onChange={(e) => setSueldoBase(e.target.value)} />
+            {(() => {
+              const horas = jornada === "completa" ? 45 : (parseInt(horasSemana) || 45);
+              const minimoLegal = Math.round(IMM_VIGENTE * (horas / 45));
+              const sueldo = num(sueldoBase);
+              if (sueldo > 0 && sueldo < minimoLegal) {
+                return (
+                  <div className="mt-1 bg-red-50 border border-red-200 rounded-lg p-2 text-xs text-red-700 space-y-0.5">
+                    <p className="font-semibold">⚠️ Sueldo bajo el mínimo legal</p>
+                    <p>Para una jornada de {horas} hrs/semana, el mínimo es <strong>{fmt(minimoLegal)}</strong>. El empleador podría enfrentar sanciones de la Inspección del Trabajo.</p>
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">
@@ -344,8 +396,10 @@ export default function FormularioFiniquito() {
           </div>
           <div className="flex gap-3 pt-2">
             <button className={btnSecondary} onClick={retroceder}>Atras</button>
-            <button className={btnPrimary} disabled={!sueldoBase} onClick={avanzar}>Continuar</button>
+            <button className={btnPrimary} disabled={!jornada || !sueldoBase} onClick={avanzar}>Continuar</button>
           </div>
+          </>
+          )}
         </div>
       )}
 
