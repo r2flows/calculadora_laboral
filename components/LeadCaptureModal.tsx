@@ -11,6 +11,7 @@ interface Props {
 export default function LeadCaptureModal({ totalConNulidad, datosCalculo, onClose }: Props) {
   const [form, setForm] = useState({ nombre: "", rut: "", email: "", telefono: "" });
   const [enviado, setEnviado] = useState(false);
+  const [portalCreado, setPortalCreado] = useState(false);
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
 
@@ -19,8 +20,8 @@ export default function LeadCaptureModal({ totalConNulidad, datosCalculo, onClos
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.nombre || !form.telefono) {
-      setError("Nombre y teléfono son obligatorios.");
+    if (!form.nombre || !form.telefono || !form.email) {
+      setError("Nombre, correo y teléfono son obligatorios.");
       return;
     }
     setCargando(true);
@@ -32,6 +33,8 @@ export default function LeadCaptureModal({ totalConNulidad, datosCalculo, onClos
         body: JSON.stringify({ ...form, resultado_total: totalConNulidad, datos_calculo: datosCalculo }),
       });
       if (!res.ok) throw new Error("Error al guardar");
+      const data = await res.json();
+      setPortalCreado(data.portalCreado ?? false);
       setEnviado(true);
     } catch {
       setError("No pudimos guardar tus datos. Intenta nuevamente.");
@@ -48,8 +51,14 @@ export default function LeadCaptureModal({ totalConNulidad, datosCalculo, onClos
         {enviado ? (
           <div className="text-center py-4 space-y-3">
             <div className="text-4xl">✓</div>
-            <h2 className="text-lg font-bold text-gray-800">¡Listo! Te contactaremos pronto.</h2>
-            <p className="text-sm text-gray-500">Un abogado revisará tu caso y se comunicará contigo en breve.</p>
+            <h2 className="text-lg font-bold text-gray-800">¡Listo!</h2>
+            {portalCreado ? (
+              <p className="text-sm text-gray-600">
+                Revisa tu correo: te enviamos un enlace para acceder a tu <strong>portal de cliente</strong>, donde podrás subir tus documentos y ver el estado de tu causa.
+              </p>
+            ) : (
+              <p className="text-sm text-gray-500">Un abogado revisará tu caso y se comunicará contigo en breve.</p>
+            )}
             <button onClick={onClose} className="mt-4 w-full bg-blue-700 text-white py-2 rounded-xl font-medium hover:bg-blue-800">
               Cerrar
             </button>
@@ -78,7 +87,7 @@ export default function LeadCaptureModal({ totalConNulidad, datosCalculo, onClos
               />
               <input
                 type="email"
-                placeholder="Correo electrónico (opcional)"
+                placeholder="Correo electrónico *"
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"

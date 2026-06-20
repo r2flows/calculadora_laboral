@@ -26,6 +26,12 @@ export default async function DetalleCliente({ params }: { params: { id: string 
     .eq("cliente_id", params.id)
     .order("fecha", { ascending: true });
 
+  const { data: documentos } = await supabase
+    .from("documentos")
+    .select("id, tipo, nombre_archivo, estado, datos_extraidos, error_mensaje, created_at")
+    .eq("cliente_id", params.id)
+    .order("created_at", { ascending: false });
+
   const fmt = (v: number) =>
     v?.toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
 
@@ -64,6 +70,44 @@ export default async function DetalleCliente({ params }: { params: { id: string 
           </div>
         ) : (
           <p className="text-sm text-gray-400">Sin reuniones agendadas.</p>
+        )}
+      </section>
+
+      {/* Documentos del cliente */}
+      <section className="space-y-2">
+        <h2 className="font-semibold text-gray-700">Documentos del cliente</h2>
+        {documentos && documentos.length > 0 ? (
+          <div className="space-y-2">
+            {documentos.map((d) => (
+              <div key={d.id} className="bg-white rounded-xl border border-gray-200 p-4 space-y-2 text-sm">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="font-medium capitalize text-gray-800">{d.tipo}</span>
+                    <span className="text-gray-400 ml-2 text-xs">{d.nombre_archivo}</span>
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    d.estado === "procesado"  ? "bg-green-100 text-green-700" :
+                    d.estado === "error"      ? "bg-red-100 text-red-600" :
+                    d.estado === "procesando" ? "bg-blue-100 text-blue-700" :
+                                                "bg-yellow-100 text-yellow-700"
+                  }`}>{d.estado}</span>
+                </div>
+                {d.error_mensaje && (
+                  <p className="text-xs text-red-500">{d.error_mensaje}</p>
+                )}
+                {d.datos_extraidos && (
+                  <details className="text-xs">
+                    <summary className="cursor-pointer text-blue-600 hover:text-blue-800">Ver datos extraídos por IA</summary>
+                    <pre className="mt-2 bg-gray-50 rounded-lg p-3 overflow-auto text-xs text-gray-600 leading-relaxed">
+                      {JSON.stringify(d.datos_extraidos, null, 2)}
+                    </pre>
+                  </details>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400">El cliente aún no ha subido documentos.</p>
         )}
       </section>
 
