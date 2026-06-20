@@ -24,7 +24,7 @@ export default async function TodosClientes() {
       <h1 className="text-xl font-bold text-gray-800">Todos los clientes</h1>
       <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100 text-sm">
         {clientes?.map((c) => {
-          const abogado = c.perfiles as { nombre: string } | null;
+          const abogado = c.perfiles as unknown as { nombre: string } | null;
           return (
             <div key={c.id} className="px-4 py-3 flex items-center justify-between">
               <div>
