@@ -25,63 +25,80 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
 
-  const path = request.nextUrl.pathname;
-  const isProtectedStaff = path.startsWith("/abogados") || path.startsWith("/admin");
-  const isProtectedCliente = path.startsWith("/cliente");
-  const isProtected = isProtectedStaff || isProtectedCliente;
-  const isLogin = path === "/login";
+    const path = request.nextUrl.pathname;
+    const isStaffRoute  = path.startsWith("/abogados") || path.startsWith("/admin");
+    const isClientRoute = path.startsWith("/cliente");
+    const isProtected   = isStaffRoute || isClientRoute;
+    const isLogin       = path === "/login";
 
-  if (!user && isProtected) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    return NextResponse.redirect(url);
-  }
+    // Sin sesión → redirigir rutas protegidas al login
+    if (!user && isProtected) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      return NextResponse.redirect(url);
+    }
 
-  if (user) {
-    // Check if staff (abogado or admin)
-    const { data: perfil } = await supabase
-      .from("perfiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
+    if (user) {
+      // ── Detectar rol ─────────────────────────────────────────────────────
+      let isStaff  = false;
+      let isAdmin  = false;
+      let isClient = false;
 
-    if (perfil) {
-      // Staff user — redirect away from login and cliente portal
-      if (isLogin || isProtectedCliente) {
-        const url = request.nextUrl.clone();
-        url.pathname = "/abogados";
-        return NextResponse.redirect(url);
+      // 1. Buscar en perfiles (abogados/admin)
+      try {
+        const { data: perfil } = await supabase
+          .from("perfiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+        if (perfil) {
+          isStaff = true;
+          isAdmin = perfil.role === "admin";
+        }
+      } catch { /* no está en perfiles */ }
+
+      // 2. Si no es staff, buscar en clientes
+      if (!isStaff) {
+        try {
+          const { data: cliente, error } = await supabase
+            .from("clientes")
+            .select("id")
+            .eq("auth_user_id", user.id)
+            .single();
+          if (!error && cliente) isClient = true;
+        } catch { /* columna aún no existe o no hay fila */ }
       }
-      // Guard /admin to role=admin only
-      if (path.startsWith("/admin") && perfil.role !== "admin") {
-        const url = request.nextUrl.clone();
-        url.pathname = "/abogados";
-        return NextResponse.redirect(url);
-      }
-    } else {
-      // Not staff — check if portal client
-      const { data: cliente } = await supabase
-        .from("clientes")
-        .select("id")
-        .eq("auth_user_id", user.id)
-        .single();
 
-      if (cliente) {
-        // Portal client — redirect away from login and staff routes
-        if (isLogin || isProtectedStaff) {
+      // ── Redirecciones por rol ─────────────────────────────────────────────
+      if (isStaff) {
+        if (isLogin || isClientRoute) {
+          const url = request.nextUrl.clone();
+          url.pathname = "/abogados";
+          return NextResponse.redirect(url);
+        }
+        if (path.startsWith("/admin") && !isAdmin) {
+          const url = request.nextUrl.clone();
+          url.pathname = "/abogados";
+          return NextResponse.redirect(url);
+        }
+      } else if (isClient) {
+        if (isLogin || isStaffRoute) {
           const url = request.nextUrl.clone();
           url.pathname = "/cliente";
           return NextResponse.redirect(url);
         }
       } else if (isProtected) {
-        // Unknown user on a protected route — back to login
+        // Usuario auth pero sin rol conocido → logout implícito
         const url = request.nextUrl.clone();
         url.pathname = "/login";
         return NextResponse.redirect(url);
       }
     }
+  } catch {
+    // Si algo falla en auth o DB, dejar pasar sin crash
   }
 
   return supabaseResponse;
