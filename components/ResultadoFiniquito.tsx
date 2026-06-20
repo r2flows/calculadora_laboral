@@ -1,24 +1,38 @@
 "use client";
 
+import { useState } from "react";
+import dynamic from "next/dynamic";
+
+const LeadCaptureModal = dynamic(() => import("./LeadCaptureModal"), { ssr: false });
+
 interface Props {
   resultado: Record<string, unknown>;
   esAdmin: boolean;
   fmt: (n: number) => string;
   onVolver: () => void;
+  datosCalculo?: Record<string, unknown>;
 }
 
 function num(v: unknown): number {
   return typeof v === "number" ? v : 0;
 }
 
-export default function ResultadoFiniquito({ resultado, esAdmin, fmt, onVolver }: Props) {
+export default function ResultadoFiniquito({ resultado, esAdmin, fmt, onVolver, datosCalculo }: Props) {
   const totalConNulidad = num(resultado.totalConNulidad);
   const totalLiquido = num(resultado.totalLiquido);
   const diasNulidad = num(resultado.diasNulidad);
+  const [showModal, setShowModal] = useState(false);
 
   if (!esAdmin) {
     return (
       <div className="space-y-6">
+        {showModal && (
+          <LeadCaptureModal
+            totalConNulidad={totalConNulidad}
+            datosCalculo={datosCalculo ?? {}}
+            onClose={() => setShowModal(false)}
+          />
+        )}
         <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center space-y-3">
           <p className="text-sm text-green-700 font-medium uppercase tracking-wide">
             Podrias llegar a demandar al dia de hoy por
@@ -28,6 +42,12 @@ export default function ResultadoFiniquito({ resultado, esAdmin, fmt, onVolver }
             Este monto considera todos los conceptos legales que te corresponden
           </p>
         </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="w-full bg-blue-700 text-white py-3 rounded-xl font-semibold hover:bg-blue-800 transition-colors"
+        >
+          Quiero que me contacten
+        </button>
         <button
           onClick={onVolver}
           className="w-full border border-gray-300 hover:bg-gray-50 py-2 rounded-lg text-sm transition-colors"

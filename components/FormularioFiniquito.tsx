@@ -415,6 +415,20 @@ export default function FormularioFiniquito() {
           esAdmin={adminVerificado}
           fmt={fmt}
           onVolver={() => { setResultado(null); setPaso(1); }}
+          datosCalculo={{
+            fechaInicio,
+            fechaTermino,
+            causal,
+            sueldoBase: num(sueldoBase),
+            movilizacion: num(movilizacion),
+            colacion: num(colacion),
+            afp,
+            tipoSalud,
+            montoIsapre: num(montoIsapre),
+            recibeGratificacion,
+            diasVacacionesAnuales: parseInt(diasVacaciones) || 15,
+            diasVacacionesTomados: parseInt(diasVacacionesTomados) || 0,
+          }}
         />
       )}
     </div>
