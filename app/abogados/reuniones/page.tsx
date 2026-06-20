@@ -32,7 +32,7 @@ export default async function Reuniones() {
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100 text-sm">
           {reuniones.map((r) => {
-            const cliente = r.clientes as { nombre: string } | null;
+            const cliente = r.clientes as unknown as { nombre: string } | null;
             return (
               <div key={r.id} className="px-4 py-3 flex justify-between items-start">
                 <div>
