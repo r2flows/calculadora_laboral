@@ -3,7 +3,7 @@ import { calcularFeriado, proyectarEnCalendario } from "./vacaciones";
 import { calcularDiasNulidad } from "./nulidad";
 import { calcularIndemnizacionAnosServicio, calcularAvisoPrevio } from "./indemnizacion";
 import { calcularRemuneracionUltimosDias, valorDia } from "./remuneracion";
-import { calcularGratificacionMensual } from "./cotizaciones";
+import { calcularGratificacionMensual, calcularDescuentos } from "./cotizaciones";
 import { calcularImpuestoRenta, tributaImpuesto } from "./impuesto";
 import type { DatosFiniquito, ResultadoFiniquito } from "./tipos";
 
@@ -57,8 +57,13 @@ export function calcularFiniquito(datos: DatosFiniquito): ResultadoFiniquito {
 
   // Valor día se calcula sobre remuneración imponible total (sueldo + gratificación)
   const vDia = valorDia(remuneracionImponibleTotal);
-  const diasCorridos = proyectarEnCalendario(feriadoProporcionalDias, datos.fechaTermino);
-  const feriadoProporcionalMonto = Math.round(vDia * diasCorridos);
+
+  // Proyectar solo la parte entera a días corridos (sáb/dom incluidos entre días hábiles).
+  // La fracción se añade directamente para no contar un día hábil de más.
+  const diasHabilesEnteros = Math.floor(feriadoProporcionalDias);
+  const fraccionHabiles = feriadoProporcionalDias - diasHabilesEnteros;
+  const diasCorridos = proyectarEnCalendario(diasHabilesEnteros, datos.fechaTermino);
+  const feriadoProporcionalMonto = Math.round(vDia * (diasCorridos + fraccionHabiles));
 
   // 5. Indemnizaciones — base incluye movilización y colación (art. 172 CT)
   const remuneracionBaseIndemnizacion =
@@ -80,10 +85,15 @@ export function calcularFiniquito(datos: DatosFiniquito): ResultadoFiniquito {
     valorHoraExtra * datos.horasExtraPermanentes +
     Math.round((valorHoraExtra / 60) * datos.minutosExtraPermanentes);
 
-  // 8. Impuesto segunda categoría (sobre remuneración imponible neta de cotizaciones)
-  // Base = remuneración imponible - AFP - salud (no incluye AFC ni asignación familiar)
-  // En el finiquito se aplica sobre los ítems tributables: últimos días + feriado
-  const baseImpuesto = remuneracionImponibleTotal;
+  // 8. Impuesto segunda categoría
+  // Base = remuneración imponible mensual − AFP − salud (no AFC, no asig. familiar)
+  const cotizacionesBase = calcularDescuentos(
+    remuneracionImponibleTotal,
+    datos.afp,
+    datos.tipoSalud,
+    datos.montoIsapre
+  );
+  const baseImpuesto = remuneracionImponibleTotal - cotizacionesBase.afp - cotizacionesBase.salud;
   const impuestoRenta = calcularImpuestoRenta(baseImpuesto);
   const trabajadorTributa = tributaImpuesto(baseImpuesto);
 
@@ -143,6 +153,7 @@ export function calcularFiniquito(datos: DatosFiniquito): ResultadoFiniquito {
     otrosDescuentos: datos.otrosDescuentos,
     asignacionFamiliar: datos.asignacionFamiliar,
     tributaImpuesto: trabajadorTributa,
+    baseImpuesto,
     impuestoRenta,
     totalBruto,
     totalLiquido,

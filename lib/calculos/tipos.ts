@@ -101,6 +101,7 @@ export interface ResultadoFiniquito {
 
   // Impuesto segunda categoría
   tributaImpuesto: boolean;
+  baseImpuesto: number;
   impuestoRenta: number;
 
   // Totales

@@ -111,7 +111,7 @@ export default function ResultadoFiniquito({ resultado, esAdmin, fmt, onVolver, 
         )}
         {!!resultado.tributaImpuesto && (
           <Row
-            label={`(-) Impuesto 2a categoria (renta imponible ${fmt(num(resultado.remuneracionImponibleTotal))})`}
+            label={`(-) Impuesto 2a categoria (base neta ${fmt(num(resultado.baseImpuesto))})`}
             value={`-${fmt(num(resultado.impuestoRenta))}`}
             negative
           />

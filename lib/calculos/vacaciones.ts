@@ -27,24 +27,36 @@ export function calcularFeriado(
  * y los proyecta sobre el calendario para obtener días corridos totales.
  * Un cálculo exacto requeriría la lista de festivos chilenos del año correspondiente.
  */
+/**
+ * Proyecta días hábiles ENTEROS en el calendario desde el día siguiente
+ * al término, contando sábados, domingos y feriados que quedan dentro
+ * del período de vacaciones.
+ * Recibe solo la parte entera de los días hábiles — la fracción se suma
+ * directamente en calcularFiniquito para no inflar el conteo.
+ */
 export function proyectarEnCalendario(
-  diasHabiles: number,
+  diasHabilesEnteros: number,
   fechaTermino: Date
 ): number {
-  const inicio = new Date(fechaTermino);
-  inicio.setDate(inicio.getDate() + 1); // día siguiente al término
+  if (diasHabilesEnteros <= 0) return 0;
 
-  let habilesRestantes = diasHabiles;
+  // Usar UTC para evitar desfases de zona horaria en el servidor
+  const cursor = new Date(Date.UTC(
+    fechaTermino.getUTCFullYear(),
+    fechaTermino.getUTCMonth(),
+    fechaTermino.getUTCDate() + 1
+  ));
+
+  let habilesRestantes = diasHabilesEnteros;
   let diasCorridos = 0;
-  const cursor = new Date(inicio);
 
   while (habilesRestantes > 0) {
-    const diaSemana = cursor.getDay(); // 0=dom, 6=sáb
+    const diaSemana = cursor.getUTCDay(); // 0=dom, 6=sáb
     if (diaSemana !== 0 && diaSemana !== 6) {
       habilesRestantes--;
     }
     diasCorridos++;
-    cursor.setDate(cursor.getDate() + 1);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
 
   return diasCorridos;
