@@ -70,9 +70,9 @@ export default function Home() {
         </div>
         <Link
           href="/login"
-          className="text-sm text-slate-400 hover:text-white transition-colors border border-slate-700 hover:border-slate-500 px-4 py-1.5 rounded-lg"
+          className="text-sm text-white font-medium border border-white/20 hover:border-white/40 bg-white/5 hover:bg-white/10 px-4 py-1.5 rounded-lg transition-all"
         >
-          Acceso profesional
+          Mi cuenta
         </Link>
       </nav>
 
@@ -337,6 +337,9 @@ export default function Home() {
             <span>LaborCalc Chile · 2026</span>
           </div>
           <p>Información orientativa. No reemplaza asesoría jurídica profesional.</p>
+          <Link href="/login" className="text-slate-700 hover:text-slate-500 transition-colors">
+            Administración
+          </Link>
         </div>
       </footer>
 
