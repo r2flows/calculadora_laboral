@@ -63,10 +63,9 @@ export default function Home() {
 
       {/* ── Navbar ─────────────────────────────────────────────────────────── */}
       <nav className="absolute top-0 left-0 right-0 z-20 flex justify-between items-center px-6 py-5 max-w-5xl mx-auto w-full">
-        <div className="flex items-center gap-2">
-          <IconGavel className="w-5 h-5 text-cyan-400" />
-          <span className="font-bold tracking-tight text-white">LaborCalc</span>
-          <span className="text-xs text-slate-500 font-normal hidden sm:inline ml-1">Chile</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-slate-400 font-normal">empowered by</span>
+          <span className="font-semibold tracking-tight text-white">AgentLoop</span>
         </div>
         <Link
           href="/login"

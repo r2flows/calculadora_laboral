@@ -5,13 +5,6 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 
-function IconGavel({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-    </svg>
-  );
-}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -73,11 +66,9 @@ export default function LoginPage() {
       <div className="relative w-full max-w-sm space-y-6">
         {/* Logo */}
         <div className="text-center">
-          <Link href="/" className="inline-flex flex-col items-center gap-2 group">
-            <div className="w-12 h-12 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center group-hover:border-blue-400/50 transition-colors">
-              <IconGavel className="w-6 h-6 text-cyan-400" />
-            </div>
-            <span className="text-white font-bold tracking-tight">LaborCalc</span>
+          <Link href="/" className="inline-flex items-center gap-1.5 group">
+            <span className="text-sm text-slate-400 font-normal">empowered by</span>
+            <span className="text-sm text-white font-semibold tracking-tight group-hover:text-cyan-300 transition-colors">AgentLoop</span>
           </Link>
         </div>
 
