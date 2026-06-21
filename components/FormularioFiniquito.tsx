@@ -41,6 +41,7 @@ const PASOS: Paso[] = [
   { titulo: "Último mes" },
   { titulo: "Descuentos y extras" },
   { titulo: "Beneficios adicionales" },
+  { titulo: "Tus datos" },
   { titulo: "Resultado" },
 ];
 
@@ -48,6 +49,11 @@ export default function FormularioFiniquito() {
   const [paso, setPaso] = useState(1);
   const [resultado, setResultado] = useState<Record<string, unknown> | null>(null);
   const [cargando, setCargando] = useState(false);
+
+  // Datos de contacto — recopilados en paso 7 antes de mostrar el resultado
+  const [nombre, setNombre] = useState("");
+  const [email, setEmail] = useState("");
+  const [telefono, setTelefono] = useState("");
 
   // Campos del formulario
   const [fechaInicio, setFechaInicio] = useState("");
@@ -100,10 +106,10 @@ export default function FormularioFiniquito() {
     }
   }
 
-  async function calcular() {
+  async function calcularYRegistrar() {
     setCargando(true);
     try {
-      const datos = {
+      const datosCalculo = {
         fechaInicio,
         fechaTermino,
         fechaConsulta: new Date().toISOString().split("T")[0],
@@ -133,11 +139,33 @@ export default function FormularioFiniquito() {
       const res = await fetch("/api/calcular", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(datos),
+        body: JSON.stringify(datosCalculo),
       });
       const json = await res.json();
+
+      // Crear lead y cuenta en paralelo con la respuesta del cálculo
+      fetch("/api/lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre,
+          email: email || null,
+          telefono: telefono || null,
+          resultado_total: Math.round((json as Record<string, unknown>).totalConNulidad as number ?? 0),
+          datos_calculo: {
+            fechaInicio, fechaTermino, causal,
+            sueldoBase: num(sueldoBase), movilizacion: num(movilizacion), colacion: num(colacion),
+            afp, tipoSalud, montoIsapre: num(montoIsapre),
+            recibeGratificacion,
+            diasVacacionesAnuales: parseInt(diasVacaciones) || 15,
+            diasVacacionesTomados: parseInt(diasVacacionesTomados) || 0,
+            _resultado: json,
+          },
+        }),
+      }).catch(() => { /* no bloquear si falla */ });
+
       setResultado(json);
-      setPaso(7);
+      setPaso(8);
     } finally {
       setCargando(false);
     }
@@ -159,7 +187,7 @@ export default function FormularioFiniquito() {
   return (
     <div className="max-w-lg mx-auto">
       {/* Progreso */}
-      {paso < 7 && (
+      {paso < 8 && (
         <div className="mb-6">
           <div className="flex justify-between text-xs text-gray-500 mb-1">
             <span>{PASOS[paso - 1]?.titulo}</span>
@@ -482,19 +510,80 @@ export default function FormularioFiniquito() {
           </div>
           <div className="flex gap-3 pt-2">
             <button className={btnSecondary} onClick={retroceder}>Atras</button>
-            <button className={btnPrimary} onClick={calcular} disabled={cargando}>
-              {cargando ? "Calculando..." : "Ver resultado"}
+            <button className={btnPrimary} onClick={avanzar}>
+              Continuar
             </button>
           </div>
         </div>
       )}
 
-      {/* PASO 7: Resultado */}
-      {paso === 7 && resultado && (
+      {/* PASO 7: Datos de contacto */}
+      {paso === 7 && (
+        <div className="space-y-5">
+          <div>
+            <h2 className="text-xl font-semibold">Casi listo</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Ingresa tus datos para ver el resultado y crear tu cuenta de seguimiento gratuita.
+            </p>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-xs text-blue-700 space-y-1">
+            <p className="font-semibold">¿Por qué pedimos esto?</p>
+            <p>Guardaremos tu estimación y podrás subir tus documentos para que nuestro equipo valide el monto exacto de tu causa.</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Nombre completo *</label>
+            <input
+              className={inputCls}
+              type="text"
+              placeholder="Ej: Juan Pérez"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Correo electrónico</label>
+            <input
+              className={inputCls}
+              type="email"
+              placeholder="tu@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <p className="text-xs text-gray-400 mt-1">Recibirás un enlace directo para acceder a tu portal de seguimiento.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Teléfono <span className="text-gray-400 font-normal">(opcional)</span></label>
+            <input
+              className={inputCls}
+              type="tel"
+              placeholder="+56 9 1234 5678"
+              value={telefono}
+              onChange={(e) => setTelefono(e.target.value)}
+            />
+          </div>
+
+          <div className="flex gap-3 pt-1">
+            <button className={btnSecondary} onClick={retroceder}>Atrás</button>
+            <button
+              className={btnPrimary}
+              onClick={calcularYRegistrar}
+              disabled={cargando || !nombre.trim()}
+            >
+              {cargando ? "Calculando..." : "Ver mi resultado →"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* PASO 8: Resultado */}
+      {paso === 8 && resultado && (
         <ResultadoFiniquito
           resultado={resultado}
           fmt={fmt}
-          onVolver={() => { setResultado(null); setPaso(1); }}
+          emailRegistrado={email || undefined}
+          onVolver={() => { setResultado(null); setPaso(1); setNombre(""); setEmail(""); setTelefono(""); }}
           datosCalculo={{
             fechaInicio,
             fechaTermino,
