@@ -14,7 +14,16 @@ export default async function ClienteLayout({ children }: { children: React.Reac
     .eq("auth_user_id", user.id)
     .single();
 
-  if (!cliente) redirect("/login");
+  if (!cliente) {
+    const { data: perfil } = await supabase
+      .from("perfiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    if (perfil?.role === "admin")    redirect("/admin");
+    else if (perfil)                 redirect("/abogados");
+    else                             redirect("/login");
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
