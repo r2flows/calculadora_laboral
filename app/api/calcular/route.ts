@@ -15,15 +15,6 @@ export async function POST(req: NextRequest) {
 
     const resultado = calcularFiniquito(datos);
 
-    // Si no es admin, omitir alertas y desglose interno
-    if (!datos.esAdmin) {
-      return NextResponse.json({
-        totalConNulidad: resultado.totalConNulidad,
-        diasNulidad: resultado.diasNulidad,
-        hayError: false, // se calculará al comparar con monto declarado pagado
-      });
-    }
-
     return NextResponse.json(resultado);
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 400 });
