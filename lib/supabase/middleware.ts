@@ -67,11 +67,6 @@ export async function updateSession(request: NextRequest) {
         url.pathname = perfilRole === "admin" ? "/admin" : "/abogados";
         return NextResponse.redirect(url);
       }
-      if (path.startsWith("/cliente")) {
-        const url = request.nextUrl.clone();
-        url.pathname = perfilRole === "admin" ? "/admin" : "/abogados";
-        return NextResponse.redirect(url);
-      }
       if (path.startsWith("/admin") && perfilRole !== "admin") {
         const url = request.nextUrl.clone();
         url.pathname = "/abogados";
