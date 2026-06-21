@@ -104,8 +104,12 @@ export default async function AuditoriaCliente({ params }: { params: { id: strin
 
   if (!cliente) notFound();
 
-  const abogado = cliente.perfiles as unknown as { nombre: string } | null;
-  const datos   = cliente.datos_calculo as Record<string, unknown> | null;
+  const abogado    = cliente.perfiles as unknown as { nombre: string } | null;
+  const datosRaw   = cliente.datos_calculo as Record<string, unknown> | null;
+  const resultado  = datosRaw?._resultado as Record<string, unknown> | null;
+  const datos      = datosRaw
+    ? Object.fromEntries(Object.entries(datosRaw).filter(([k]) => k !== "_resultado"))
+    : null;
 
   return (
     <div className="max-w-2xl space-y-5">
@@ -153,6 +157,72 @@ export default async function AuditoriaCliente({ params }: { params: { id: strin
         </div>
       )}
 
+      {/* Desglose del cálculo */}
+      {resultado && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Desglose del cálculo
+          </h2>
+          {(() => {
+            const n = (v: unknown) => (typeof v === "number" ? v : 0);
+            const cotiz = (resultado.cotizacionesUltimosDias as Record<string, number>) ?? {};
+            const alertas = Array.isArray(resultado.alertas) ? (resultado.alertas as string[]) : [];
+            return (
+              <div className="space-y-2">
+                {alertas.length > 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3 space-y-1">
+                    <p className="text-xs font-semibold text-red-700">Alertas</p>
+                    {alertas.map((a, i) => <p key={i} className="text-xs text-red-600">{a}</p>)}
+                  </div>
+                )}
+                <div className="divide-y divide-gray-100 text-sm">
+                  <DesgRow label="Meses trabajados" value={`${n(resultado.mesesTrabajados)} meses ${n(resultado.diasTrabajados)} días`} />
+                  <DesgRow label="Remuneración imponible mensual" value={fmtCLP(resultado.remuneracionImponibleTotal)} />
+                  {n(resultado.gratificacionMensual) > 0 && (
+                    <DesgRow label="· Gratificación mensual incluida" value={fmtCLP(resultado.gratificacionMensual)} muted />
+                  )}
+                  {n(resultado.remUltimosDias) > 0 && (<>
+                    <DesgRow label="Remuneración últimos días (líquido)" value={fmtCLP(resultado.remUltimosDias)} />
+                    <DesgRow label="· AFP descontado" value={fmtCLP(cotiz.afp ?? 0)} muted />
+                    <DesgRow label="· Salud descontado" value={fmtCLP(cotiz.salud ?? 0)} muted />
+                    <DesgRow label="· AFC descontado" value={fmtCLP(cotiz.afc ?? 0)} muted />
+                  </>)}
+                  {n(resultado.feriadoProporcionalDiasDescontados) > 0 ? (
+                    <DesgRow
+                      label={`Feriado proporcional (${n(resultado.feriadoProporcionalDiasCalculados)} calc. − ${n(resultado.feriadoProporcionalDiasDescontados)} gozados = ${n(resultado.feriadoProporcionalDias)} días)`}
+                      value={fmtCLP(resultado.feriadoProporcionalMonto)}
+                    />
+                  ) : (
+                    <DesgRow label={`Feriado proporcional (${n(resultado.feriadoProporcionalDias)} días hábiles)`} value={fmtCLP(resultado.feriadoProporcionalMonto)} />
+                  )}
+                  {n(resultado.indemnizacionAvisoPrevio) > 0 && (
+                    <DesgRow label="Indemnización aviso previo" value={fmtCLP(resultado.indemnizacionAvisoPrevio)} />
+                  )}
+                  {n(resultado.indemnizacionAnosServicio) > 0 && (
+                    <DesgRow label="Indemnización años de servicio" value={fmtCLP(resultado.indemnizacionAnosServicio)} />
+                  )}
+                  {n(resultado.asignacionFamiliar) > 0 && (
+                    <DesgRow label="Asignación familiar (no cotizable)" value={fmtCLP(resultado.asignacionFamiliar)} />
+                  )}
+                  {!!resultado.tributaImpuesto && (
+                    <DesgRow label={`(-) Impuesto 2ª cat. (base ${fmtCLP(resultado.baseImpuesto)})`} value={`-${fmtCLP(resultado.impuestoRenta)}`} negative />
+                  )}
+                  {n(resultado.anticipoSueldo) > 0 && (
+                    <DesgRow label="(-) Anticipo de sueldo" value={`-${fmtCLP(resultado.anticipoSueldo)}`} negative />
+                  )}
+                  {n(resultado.otrosDescuentos) > 0 && (
+                    <DesgRow label="(-) Otros descuentos" value={`-${fmtCLP(resultado.otrosDescuentos)}`} negative />
+                  )}
+                  <DesgRow label="Total líquido (sin nulidad)" value={fmtCLP(resultado.totalLiquido)} bold />
+                  <DesgRow label={`Nulidad del despido (${n(resultado.diasNulidad)} días)`} value={fmtCLP(resultado.montoNulidad)} />
+                  <DesgRow label="TOTAL CON NULIDAD" value={fmtCLP(resultado.totalConNulidad)} bold highlight />
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
       {/* Datos ingresados en la calculadora */}
       {datos && Object.keys(datos).length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-5">
@@ -173,17 +243,6 @@ export default async function AuditoriaCliente({ params }: { params: { id: strin
                 </div>
               );
             })}
-            {/* Mostrar campos no mapeados (futuros) */}
-            {Object.entries(datos)
-              .filter(([k]) => !(k in CAMPO))
-              .map(([k, v]) => (
-                <div key={k} className="flex justify-between items-start py-2 gap-4">
-                  <span className="text-gray-400 flex-shrink-0 font-mono text-xs">{k}</span>
-                  <span className="text-gray-600 text-right text-xs">
-                    {typeof v === "object" ? JSON.stringify(v) : String(v)}
-                  </span>
-                </div>
-              ))}
           </div>
         </div>
       )}
@@ -244,6 +303,24 @@ export default async function AuditoriaCliente({ params }: { params: { id: strin
         )}
       </div>
 
+    </div>
+  );
+}
+
+function DesgRow({
+  label, value, bold, highlight, negative, muted,
+}: {
+  label: string; value: string;
+  bold?: boolean; highlight?: boolean; negative?: boolean; muted?: boolean;
+}) {
+  return (
+    <div className={`flex justify-between items-center px-3 py-2 ${highlight ? "bg-green-50 rounded-lg" : ""}`}>
+      <span className={`text-sm ${bold ? "font-semibold text-gray-800" : muted ? "text-gray-400" : "text-gray-600"}`}>
+        {label}
+      </span>
+      <span className={`text-sm font-medium ${highlight ? "text-green-700 font-bold" : negative ? "text-red-600" : muted ? "text-gray-400" : "text-gray-800"}`}>
+        {value}
+      </span>
     </div>
   );
 }

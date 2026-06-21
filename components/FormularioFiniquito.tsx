@@ -16,8 +16,6 @@ function Tooltip({ text }: { text: string }) {
   );
 }
 
-const CODIGO_ADMIN = process.env.NEXT_PUBLIC_ADMIN_CODE ?? "ADMIN2024";
-
 const CAUSALES: { value: CausalDespido; label: string }[] = [
   { value: "art159_5", label: "Renuncia voluntaria" },
   { value: "art159_1", label: "Mutuo acuerdo" },
@@ -37,7 +35,6 @@ interface Paso {
 }
 
 const PASOS: Paso[] = [
-  { titulo: "Identificación" },
   { titulo: "Contrato y término" },
   { titulo: "Remuneración y previsión" },
   { titulo: "Vacaciones" },
@@ -48,11 +45,7 @@ const PASOS: Paso[] = [
 ];
 
 export default function FormularioFiniquito() {
-  const [paso, setPaso] = useState(0);
-  const [esAdmin, setEsAdmin] = useState(false);
-  const [codigoAdmin, setCodigoAdmin] = useState("");
-  const [adminVerificado, setAdminVerificado] = useState(false);
-  const [errorAdmin, setErrorAdmin] = useState(false);
+  const [paso, setPaso] = useState(1);
   const [resultado, setResultado] = useState<Record<string, unknown> | null>(null);
   const [cargando, setCargando] = useState(false);
 
@@ -87,16 +80,6 @@ export default function FormularioFiniquito() {
   const fmt = (v: number) =>
     v.toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
 
-  function verificarAdmin() {
-    if (codigoAdmin === CODIGO_ADMIN) {
-      setAdminVerificado(true);
-      setErrorAdmin(false);
-      avanzar();
-    } else {
-      setErrorAdmin(true);
-    }
-  }
-
   function avanzar() {
     setPaso((p) => p + 1);
   }
@@ -121,7 +104,6 @@ export default function FormularioFiniquito() {
     setCargando(true);
     try {
       const datos = {
-        esAdmin: adminVerificado,
         fechaInicio,
         fechaTermino,
         fechaConsulta: new Date().toISOString().split("T")[0],
@@ -180,41 +162,15 @@ export default function FormularioFiniquito() {
       {paso < 7 && (
         <div className="mb-6">
           <div className="flex justify-between text-xs text-gray-500 mb-1">
-            <span>{PASOS[paso]?.titulo}</span>
-            <span>Paso {paso + 1} de {PASOS.length - 1}</span>
+            <span>{PASOS[paso - 1]?.titulo}</span>
+            <span>Paso {paso} de {PASOS.length - 1}</span>
           </div>
           <div className="h-1.5 bg-gray-200 rounded-full">
             <div
               className="h-1.5 bg-blue-600 rounded-full transition-all"
-              style={{ width: `${((paso) / (PASOS.length - 2)) * 100}%` }}
+              style={{ width: `${((paso - 1) / (PASOS.length - 2)) * 100}%` }}
             />
           </div>
-        </div>
-      )}
-
-      {/* PASO 0: Identificación */}
-      {paso === 0 && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold">Bienvenido</h2>
-          <p className="text-gray-600 text-sm">¿Eres administrador del sistema?</p>
-          <div className="flex gap-3">
-            <button className={btnYN(esAdmin)} onClick={() => setEsAdmin(true)}>Sí</button>
-            <button className={btnYN(!esAdmin)} onClick={() => { setEsAdmin(false); avanzar(); }}>No</button>
-          </div>
-          {esAdmin && (
-            <div className="space-y-2">
-              <input
-                className={inputCls}
-                type="password"
-                placeholder="Código de administrador"
-                value={codigoAdmin}
-                onChange={(e) => setCodigoAdmin(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && verificarAdmin()}
-              />
-              {errorAdmin && <p className="text-red-600 text-sm">Código incorrecto.</p>}
-              <button className={btnPrimary} onClick={verificarAdmin}>Ingresar</button>
-            </div>
-          )}
         </div>
       )}
 
@@ -537,7 +493,6 @@ export default function FormularioFiniquito() {
       {paso === 7 && resultado && (
         <ResultadoFiniquito
           resultado={resultado}
-          esAdmin={adminVerificado}
           fmt={fmt}
           onVolver={() => { setResultado(null); setPaso(1); }}
           datosCalculo={{
@@ -553,6 +508,7 @@ export default function FormularioFiniquito() {
             recibeGratificacion,
             diasVacacionesAnuales: parseInt(diasVacaciones) || 15,
             diasVacacionesTomados: parseInt(diasVacacionesTomados) || 0,
+            _resultado: resultado,
           }}
         />
       )}
