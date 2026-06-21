@@ -3,10 +3,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 const TIPOS = [
-  { value: "liquidacion", label: "Liquidación de sueldo" },
-  { value: "finiquito",   label: "Finiquito" },
-  { value: "contrato",    label: "Contrato de trabajo" },
-  { value: "otro",        label: "Otro documento" },
+  { value: "liquidacion",   label: "Liquidación de sueldo" },
+  { value: "finiquito",     label: "Finiquito" },
+  { value: "contrato",      label: "Contrato de trabajo" },
+  { value: "carta_despido", label: "Carta de despido" },
+  { value: "otro",          label: "Otro documento" },
 ] as const;
 
 type Tipo = typeof TIPOS[number]["value"];

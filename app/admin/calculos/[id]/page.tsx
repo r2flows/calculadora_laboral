@@ -34,10 +34,11 @@ const CAMPO: Record<string, { label: string; fmt: "currency" | "date" | "bool" |
 };
 
 const TIPO_DOC: Record<string, string> = {
-  liquidacion: "Liquidación de sueldo",
-  finiquito:   "Finiquito",
-  contrato:    "Contrato de trabajo",
-  otro:        "Otro documento",
+  liquidacion:   "Liquidación de sueldo",
+  finiquito:     "Finiquito",
+  contrato:      "Contrato de trabajo",
+  carta_despido: "Carta de despido",
+  otro:          "Otro documento",
 };
 
 const CAMPO_EXTRAIDO: Record<string, { label: string; fmt: "currency" | "text" | "date" }> = {
