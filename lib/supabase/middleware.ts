@@ -62,11 +62,7 @@ export async function updateSession(request: NextRequest) {
 
     if (perfilRole !== null) {
       // Usuario staff (abogado o admin)
-      if (isLogin) {
-        const url = request.nextUrl.clone();
-        url.pathname = perfilRole === "admin" ? "/admin" : "/abogados";
-        return NextResponse.redirect(url);
-      }
+      // /login: dejamos pasar — el admin puede ver la página de acceso para clientes
       if (path.startsWith("/admin") && perfilRole !== "admin") {
         const url = request.nextUrl.clone();
         url.pathname = "/abogados";
