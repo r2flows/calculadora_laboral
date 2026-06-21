@@ -68,7 +68,7 @@ export default function Home() {
           <span className="font-semibold tracking-tight text-white">AgentLoop</span>
         </div>
         <Link
-          href="/login"
+          href="/cliente"
           className="text-sm text-white font-medium border border-white/20 hover:border-white/40 bg-white/5 hover:bg-white/10 px-4 py-1.5 rounded-lg transition-all"
         >
           Mi cuenta
