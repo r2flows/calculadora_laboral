@@ -24,14 +24,14 @@ export default function LoginPage() {
     const supabase = createClient();
 
     if (modo === "magic") {
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: `${siteUrl}/cliente` },
+      const res = await fetch("/api/auth/magic-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
       });
       setLoading(false);
-      if (otpError) {
-        setError("No pudimos enviar el enlace. Verifica tu correo.");
+      if (!res.ok) {
+        setError("No pudimos enviar el enlace. Verifica tu correo e intenta de nuevo.");
       } else {
         setEnviado(true);
       }
