@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient as createSupabasePublic } from "@supabase/supabase-js";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM   = process.env.FROM_EMAIL ?? "portal@laboral.agentloop.cl";
+const FROM   = process.env.FROM_EMAIL ?? "onboarding@resend.dev";
 const SITE   = process.env.NEXT_PUBLIC_SITE_URL ?? "https://calculadoralaboral-three.vercel.app";
 
 export async function POST(req: NextRequest) {
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
 
   if (email) {
     try {
-      // Crear usuario en Supabase Auth (sin enviar email de Supabase)
+      // Crear usuario en Supabase Auth
       const { data: authData } = await supabase.auth.admin.createUser({
         email,
         email_confirm: true,
@@ -52,23 +53,37 @@ export async function POST(req: NextRequest) {
           .update({ auth_user_id: authData.user.id })
           .eq("id", cliente.id);
 
-        // Generar magic link de activación y enviarlo via Resend
-        const { data: linkData } = await supabase.auth.admin.generateLink({
+        // Canal primario: SMTP propio de Supabase (no depende de dominio verificado)
+        const supabasePublic = createSupabasePublic(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        );
+        const { error: otpError } = await supabasePublic.auth.signInWithOtp({
+          email,
+          options: { shouldCreateUser: false, emailRedirectTo: `${SITE}/cliente` },
+        });
+
+        if (otpError) {
+          console.error("Error enviando OTP via Supabase:", otpError.message);
+        } else {
+          portalCreado = true;
+        }
+
+        // Canal secundario: email enriquecido via Resend (puede fallar sin bloquear)
+        supabase.auth.admin.generateLink({
           type: "magiclink",
           email,
           options: { redirectTo: `${SITE}/cliente` },
-        });
-
-        if (linkData?.properties?.action_link) {
-          await resend.emails.send({
-            from: FROM,
-            to: email,
-            subject: "Activa tu portal — Tu estimación está lista",
-            html: bienvenidaTemplate(nombre, linkData.properties.action_link, resultado_total),
-          });
-        }
-
-        portalCreado = true;
+        }).then(({ data: linkData }) => {
+          if (linkData?.properties?.action_link) {
+            resend.emails.send({
+              from: FROM,
+              to: email,
+              subject: "Tu estimación está lista — Accede a tu portal",
+              html: bienvenidaTemplate(nombre, linkData.properties.action_link, resultado_total),
+            }).catch(() => {});
+          }
+        }).catch(() => {});
       }
     } catch (authError) {
       console.error("Error creando acceso portal:", authError);
