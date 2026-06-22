@@ -68,7 +68,7 @@ export default function Home() {
 
             {/* Card 2 — Liquidación */}
             <Link
-              href="/finiquito"
+              href="/liquidacion"
               className="group flex items-start justify-between gap-4 p-5 rounded-2xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all"
             >
               <div className="flex items-start gap-4">
@@ -88,7 +88,7 @@ export default function Home() {
 
             {/* Card 3 — Cotizaciones */}
             <Link
-              href="/finiquito"
+              href="/cotizaciones"
               className="group flex items-start justify-between gap-4 p-5 rounded-2xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all"
             >
               <div className="flex items-start gap-4">
