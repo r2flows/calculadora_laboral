@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import type { AFP, CausalDespido, TipoSalud } from "@/lib/calculos/tipos";
+import type { AFP, CausalDespido, ContratoTipo, TipoSalud } from "@/lib/calculos/tipos";
 import { jornadaMaximaLegal, minimoLegalAplicable } from "@/lib/calculos/jornada";
+import { CAUSALES_V2 } from "@/lib/calculos/causales";
 import ResultadoFiniquito from "./ResultadoFiniquito";
 
 function Tooltip({ text }: { text: string }) {
@@ -16,16 +17,15 @@ function Tooltip({ text }: { text: string }) {
   );
 }
 
-const CAUSALES: { value: CausalDespido; label: string }[] = [
-  { value: "art159_5", label: "Renuncia voluntaria" },
-  { value: "art159_1", label: "Mutuo acuerdo" },
-  { value: "art159_2", label: "Vencimiento de plazo" },
-  { value: "art159_3", label: "Conclusión del trabajo" },
-  { value: "art160", label: "Falta grave (Art. 160)" },
-  { value: "art161", label: "Necesidades de la empresa (Art. 161)" },
-  { value: "art161a", label: "Desahucio" },
-  { value: "autodespido", label: "Autodespido" },
-];
+const CAUSALES: { value: CausalDespido; label: string }[] = (
+  Object.keys(CAUSALES_V2) as CausalDespido[]
+).map((value) => ({ value, label: CAUSALES_V2[value].label }));
+
+// Causales del Art. 160 (despido con causa) — determinan si corresponde preguntar
+// "¿tiene pruebas de que el despido fue injustificado?" para el recargo Art. 168.
+const CAUSALES_160 = new Set<CausalDespido>([
+  "160_1a", "160_1b", "160_3", "160_4", "160_5", "160_6", "160_7",
+]);
 
 const AFPS: AFP[] = ["Capital", "Cuprum", "Habitat", "Modelo", "PlanVital", "Provida", "Uno"];
 
@@ -58,7 +58,16 @@ export default function FormularioFiniquito() {
   // Campos del formulario
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaTermino, setFechaTermino] = useState("");
-  const [causal, setCausal] = useState<CausalDespido>("art161");
+  const [causal, setCausal] = useState<CausalDespido>("161_1");
+  const [contratoTipo, setContratoTipo] = useState<ContratoTipo>("indefinido");
+  // 159_4/160_x: ¿el empleador invocó correctamente la causal? (false = despido injustificado)
+  const [causalEsCorrecta, setCausalEsCorrecta] = useState<boolean | null>(null);
+  // 160_x: ¿el trabajador tiene pruebas/antecedentes de que el despido fue injustificado?
+  const [tienePruebas, setTienePruebas] = useState<boolean | null>(null);
+  // 161_1: ¿recibió carta de aviso con 30 días de anticipación?
+  const [recibioCarta30Dias, setRecibioCarta30Dias] = useState<boolean | null>(null);
+  // 161_1: AFC ya descontado en el finiquito firmado (para no exigirlo dos veces)
+  const [afcDescontadoEnFiniquito, setAfcDescontadoEnFiniquito] = useState("");
   const [sueldoBase, setSueldoBase] = useState("");
   const [movilizacion, setMovilizacion] = useState("");
   const [colacion, setColacion] = useState("");
@@ -71,6 +80,7 @@ export default function FormularioFiniquito() {
   const [diasVacaciones, setDiasVacaciones] = useState("15");
   const [diasVacacionesTomados, setDiasVacacionesTomados] = useState("0");
   const [reciboUltimoMes, setReciboUltimoMes] = useState<boolean | null>(null);
+  const [cotizacionesAlDia, setCotizacionesAlDia] = useState<boolean | null>(null);
   const [anticipo, setAnticipo] = useState("");
   const [otrosDescuentos, setOtrosDescuentos] = useState("");
   const [horasExtra, setHorasExtra] = useState("");
@@ -109,11 +119,22 @@ export default function FormularioFiniquito() {
   async function calcularYRegistrar() {
     setCargando(true);
     try {
+      const fechaRef = fechaTermino || new Date().toISOString().split("T")[0];
+      const jornadaSemanal = jornada === "completa"
+        ? jornadaMaximaLegal(fechaRef)
+        : (parseInt(horasSemana) || 30);
+
       const datosCalculo = {
         fechaInicio,
         fechaTermino,
         fechaConsulta: new Date().toISOString().split("T")[0],
         causal,
+        contratoTipo,
+        causalEsCorrecta: causalEsCorrecta ?? true,
+        tienePruebas: tienePruebas ?? false,
+        recibioCarta30Dias: recibioCarta30Dias ?? true,
+        afcDescontadoEnFiniquito: num(afcDescontadoEnFiniquito),
+        jornadaSemanal,
         sueldoBase: num(sueldoBase),
         movilizacion: num(movilizacion),
         colacion: num(colacion),
@@ -127,6 +148,7 @@ export default function FormularioFiniquito() {
         diasVacacionesAnuales: parseInt(diasVacaciones) || 15,
         diasVacacionesTomados: parseInt(diasVacacionesTomados) || 0,
         reciboRemuneracionUltimoMes: reciboUltimoMes ?? true,
+        cotizacionesAlDia: cotizacionesAlDia ?? true,
         horasExtraPermanentes: num(horasExtra),
         minutosExtraPermanentes: num(minutosExtra),
         anticipoSueldo: num(anticipo),
@@ -153,12 +175,7 @@ export default function FormularioFiniquito() {
           telefono: telefono || null,
           resultado_total: Math.round((json as Record<string, unknown>).totalConNulidad as number ?? 0),
           datos_calculo: {
-            fechaInicio, fechaTermino, causal,
-            sueldoBase: num(sueldoBase), movilizacion: num(movilizacion), colacion: num(colacion),
-            afp, tipoSalud, montoIsapre: num(montoIsapre),
-            recibeGratificacion,
-            diasVacacionesAnuales: parseInt(diasVacaciones) || 15,
-            diasVacacionesTomados: parseInt(diasVacacionesTomados) || 0,
+            ...datosCalculo,
             _resultado: json,
           },
         }),
@@ -225,15 +242,98 @@ export default function FormularioFiniquito() {
               Causal de término
               <Tooltip text="La razón legal del despido que figura en tu carta de aviso. Si no la tienes, elige la que mejor describe tu situación. Art. 161 es el más común en despidos por la empresa." />
             </label>
-            <select className={inputCls} value={causal} onChange={(e) => setCausal(e.target.value as CausalDespido)}>
+            <select
+              className={inputCls}
+              value={causal}
+              onChange={(e) => {
+                setCausal(e.target.value as CausalDespido);
+                setCausalEsCorrecta(null);
+                setTienePruebas(null);
+                setRecibioCarta30Dias(null);
+              }}
+            >
               {CAUSALES.map((c) => (
                 <option key={c.value} value={c.value}>{c.label}</option>
               ))}
             </select>
           </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Tipo de contrato
+              <Tooltip text="En contratos indefinidos el trabajador cotiza AFC (0,6%); en plazo fijo u obra/faena el AFC lo paga íntegramente el empleador." />
+            </label>
+            <div className="flex gap-2 flex-wrap">
+              <button className={btnYN(contratoTipo === "indefinido")} onClick={() => setContratoTipo("indefinido")}>Indefinido</button>
+              <button className={btnYN(contratoTipo === "plazo_fijo")} onClick={() => setContratoTipo("plazo_fijo")}>Plazo fijo</button>
+              <button className={btnYN(contratoTipo === "obra_faena")} onClick={() => setContratoTipo("obra_faena")}>Obra o faena</button>
+            </div>
+          </div>
+
+          {causal === "159_4" && (
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                ¿El contrato realmente venció en la fecha indicada?
+                <Tooltip text="Si en la práctica seguiste trabajando después del plazo pactado, o el contrato era en realidad indefinido, esta causal pudo invocarse incorrectamente y correspondería indemnización + recargo del 50%." />
+              </label>
+              <div className="flex gap-3">
+                <button className={btnYN(causalEsCorrecta === true)} onClick={() => setCausalEsCorrecta(true)}>Sí, venció correctamente</button>
+                <button className={btnYN(causalEsCorrecta === false)} onClick={() => setCausalEsCorrecta(false)}>No, se invocó mal</button>
+              </div>
+            </div>
+          )}
+
+          {CAUSALES_160.has(causal) && (
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                ¿Tienes pruebas o antecedentes de que el despido fue injustificado?
+                <Tooltip text="Ej: testigos, mensajes, ausencia de procedimiento previo, falta de proporcionalidad de la sanción. Si los tienes, además de la indemnización podría corresponder un recargo legal (Art. 168)." />
+              </label>
+              <div className="flex gap-3">
+                <button className={btnYN(tienePruebas === true)} onClick={() => setTienePruebas(true)}>Sí</button>
+                <button className={btnYN(tienePruebas === false)} onClick={() => setTienePruebas(false)}>No</button>
+              </div>
+            </div>
+          )}
+
+          {causal === "161_1" && (
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                ¿Recibiste la carta de aviso con 30 días de anticipación?
+                <Tooltip text="Si el empleador no avisó con 30 días de anticipación (o no pagó ese mes por adelantado), corresponde un mes adicional de remuneración (aviso previo sustitutivo)." />
+              </label>
+              <div className="flex gap-3">
+                <button className={btnYN(recibioCarta30Dias === true)} onClick={() => setRecibioCarta30Dias(true)}>Sí</button>
+                <button className={btnYN(recibioCarta30Dias === false)} onClick={() => setRecibioCarta30Dias(false)}>No</button>
+              </div>
+            </div>
+          )}
+
+          {causal === "161_1" && (
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Monto de AFC que el empleador ya descontó en el finiquito firmado
+                <Tooltip text="Si ya firmaste un finiquito y este incluía un pago de AFC (seguro de cesantía) a cargo del empleador, indica ese monto para no exigirlo dos veces. Deja en 0 si no aplica o no firmaste finiquito." />
+              </label>
+              <input className={inputCls} type="number" placeholder="0" value={afcDescontadoEnFiniquito} onChange={(e) => setAfcDescontadoEnFiniquito(e.target.value)} />
+            </div>
+          )}
+
           <div className="flex gap-3 pt-2">
             <button className={btnSecondary} onClick={retroceder}>Atrás</button>
-            <button className={btnPrimary} disabled={!fechaInicio || !fechaTermino} onClick={avanzar}>Continuar</button>
+            <button
+              className={btnPrimary}
+              disabled={
+                !fechaInicio ||
+                !fechaTermino ||
+                (causal === "159_4" && causalEsCorrecta === null) ||
+                (CAUSALES_160.has(causal) && tienePruebas === null) ||
+                (causal === "161_1" && recibioCarta30Dias === null)
+              }
+              onClick={avanzar}
+            >
+              Continuar
+            </button>
           </div>
         </div>
       )}
@@ -450,9 +550,21 @@ export default function FormularioFiniquito() {
               Se incluira el pago de los dias trabajados ese mes con los descuentos legales correspondientes.
             </p>
           )}
+
+          <div className="pt-2 border-t border-gray-100">
+            <p className="text-sm text-gray-600">
+              ¿Tu empleador tenía tus cotizaciones (AFP, salud, AFC) al día en la fecha del despido?
+              <Tooltip text="Si el empleador no pagó tus cotizaciones hasta el día del despido, la ley (nulidad del despido) lo obliga a pagarte una remuneración adicional por cada día que pasa sin regularizarlas. Si no estás seguro, puedes revisarlo en tu certificado de cotizaciones o marcar 'No sé' para no incluirlo en la estimación." />
+            </p>
+            <div className="flex gap-3 mt-2">
+              <button className={btnYN(cotizacionesAlDia === true)} onClick={() => setCotizacionesAlDia(true)}>Sí, al día</button>
+              <button className={btnYN(cotizacionesAlDia === false)} onClick={() => setCotizacionesAlDia(false)}>No / tenía atraso</button>
+            </div>
+          </div>
+
           <div className="flex gap-3 pt-2">
             <button className={btnSecondary} onClick={retroceder}>Atras</button>
-            <button className={btnPrimary} disabled={reciboUltimoMes === null} onClick={avanzar}>Continuar</button>
+            <button className={btnPrimary} disabled={reciboUltimoMes === null || cotizacionesAlDia === null} onClick={avanzar}>Continuar</button>
           </div>
         </div>
       )}

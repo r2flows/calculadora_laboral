@@ -2,9 +2,18 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import type { AFP, ContratoTipo, TipoSalud } from "@/lib/calculos/tipos";
+import {
+  calcularAuditoriaCotizaciones,
+  type ResultadoAuditoriaCotizaciones,
+} from "@/lib/calculos/auditoriaCotizaciones";
 
 /* ── constantes ───────────────────────────────────────────────────────── */
-const AFP_RATES: Record<string, number> = {
+const AFPS: AFP[] = ["Capital", "Cuprum", "Habitat", "Modelo", "PlanVital", "Provida", "Uno"];
+
+// Tasas AFP solo para el texto informativo en vivo mientras se completa el formulario
+// (el cálculo real, con tasas vigentes por fecha, ocurre en calcularAuditoriaCotizaciones).
+const AFP_RATES_REFERENCIA: Record<AFP, number> = {
   Capital: 0.1127,
   Cuprum: 0.1144,
   Habitat: 0.1127,
@@ -13,7 +22,13 @@ const AFP_RATES: Record<string, number> = {
   Provida: 0.1145,
   Uno: 0.1069,
 };
-const AFPS = Object.keys(AFP_RATES);
+
+// Mapeo entre las etiquetas de UI y el ContratoTipo del motor de cálculo.
+const CONTRATO_TIPO_MAP: Record<"indefinido" | "plazo" | "obra", ContratoTipo> = {
+  indefinido: "indefinido",
+  plazo: "plazo_fijo",
+  obra: "obra_faena",
+};
 
 const fmt = (n: number) =>
   n.toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
@@ -28,25 +43,6 @@ const btnSecondary =
 
 const PASOS = ["Contrato", "AFP", "Salud", "AFC", "Tus datos", "Resultado"];
 
-/* ── tipos ────────────────────────────────────────────────────────────── */
-interface ItemAuditoria {
-  label: string;
-  esperado: number;
-  declarado: number;
-  diferencia: number;
-  tasaEsperada: string;
-}
-
-interface Resultado {
-  imponible: number;
-  items: ItemAuditoria[];
-  totalEsperado: number;
-  totalDeclarado: number;
-  totalDiferencia: number;
-  alertas: string[];
-  nulidad: boolean;
-}
-
 /* ── componente ───────────────────────────────────────────────────────── */
 export default function FormularioCotizaciones() {
   const [paso, setPaso] = useState(1);
@@ -56,23 +52,25 @@ export default function FormularioCotizaciones() {
   const [sueldoImponible, setSueldoImponible] = useState("");
 
   // Paso 2 — AFP
-  const [afpNombre, setAfpNombre] = useState("Capital");
+  const [afpNombre, setAfpNombre] = useState<AFP>("Capital");
   const [montoAFP, setMontoAFP] = useState("");
 
   // Paso 3 — Salud
-  const [tipoSalud, setTipoSalud] = useState<"Fonasa" | "Isapre">("Fonasa");
+  const [tipoSalud, setTipoSalud] = useState<TipoSalud>("Fonasa");
   const [tieneCaja, setTieneCaja] = useState<boolean | null>(null);
   const [montoSalud, setMontoSalud] = useState("");
 
-  // Paso 4 — AFC
+  // Paso 4 — AFC + despido
   const [montoAFC, setMontoAFC] = useState("");
+  const [fueDespedido, setFueDespedido] = useState<boolean | null>(null);
+  const [fechaDespido, setFechaDespido] = useState("");
 
   // Paso 5 — Lead
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
   const [telefono, setTelefono] = useState("");
 
-  const [resultado, setResultado] = useState<Resultado | null>(null);
+  const [resultado, setResultado] = useState<ResultadoAuditoriaCotizaciones | null>(null);
   const [emailRegistrado, setEmailRegistrado] = useState("");
   const [enviando, setEnviando] = useState(false);
 
@@ -81,86 +79,19 @@ export default function FormularioCotizaciones() {
   function retroceder() { setPaso((p) => p - 1); }
 
   /* ── calcular ────────────────────────────────────────────────────────── */
-  function calcular(): Resultado {
-    const imponible = Number(sueldoImponible) || 0;
-    const afpDeclarado = Number(montoAFP) || 0;
-    const saludDeclarado = Number(montoSalud) || 0;
-    const afcDeclarado = Number(montoAFC) || 0;
-
-    // AFP esperado
-    const afpEsperado = Math.round(imponible * (AFP_RATES[afpNombre] ?? 0.1127));
-    const afpTasa = `${((AFP_RATES[afpNombre] ?? 0.1127) * 100).toFixed(2)}%`;
-
-    // Salud esperada
-    let saludEsperado = 0;
-    let saludTasa = "7%";
-    if (tipoSalud === "Fonasa") {
-      const tasa = tieneCaja ? 0.028 : 0.07;
-      saludEsperado = Math.round(imponible * tasa);
-      saludTasa = tieneCaja ? "2,8% (con caja compensación)" : "7%";
-    } else {
-      // Isapre: el monto declarado es el correcto (no calculamos)
-      saludEsperado = saludDeclarado;
-      saludTasa = "Monto pactado";
-    }
-
-    // AFC esperado (trabajador)
-    const afcEsperado = tipoContrato === "indefinido"
-      ? Math.round(imponible * 0.006)
-      : 0;
-    const afcTasa = tipoContrato === "indefinido"
-      ? "0,6% (indefinido)"
-      : "0% (obra/plazo — solo empleador)";
-
-    const items: ItemAuditoria[] = [
-      {
-        label: `AFP ${afpNombre}`,
-        esperado: afpEsperado,
-        declarado: afpDeclarado,
-        diferencia: afpEsperado - afpDeclarado,
-        tasaEsperada: afpTasa,
-      },
-      {
-        label: `Salud (${tipoSalud})`,
-        esperado: saludEsperado,
-        declarado: saludDeclarado,
-        diferencia: saludEsperado - saludDeclarado,
-        tasaEsperada: saludTasa,
-      },
-      {
-        label: "AFC (Seguro Cesantía)",
-        esperado: afcEsperado,
-        declarado: afcDeclarado,
-        diferencia: afcEsperado - afcDeclarado,
-        tasaEsperada: afcTasa,
-      },
-    ];
-
-    const totalEsperado = afpEsperado + saludEsperado + afcEsperado;
-    const totalDeclarado = afpDeclarado + saludDeclarado + afcDeclarado;
-    const totalDiferencia = totalEsperado - totalDeclarado;
-
-    const alertas: string[] = [];
-    const nulidad = afpEsperado > 0 && afpDeclarado === 0;
-
-    if (items.some((i) => Math.abs(i.diferencia) > 500)) {
-      alertas.push("Se detectaron diferencias en las cotizaciones. Esto puede ser causal de nulidad del despido.");
-    }
-    if (nulidad) {
-      alertas.push("No se declaró AFP. Si el empleador no cotizó, el despido puede ser nulo y corresponde pagar remuneraciones hasta regularizar.");
-    }
-    if (tipoContrato !== "indefinido" && afcDeclarado > 0) {
-      alertas.push(
-        "En contratos a plazo fijo u obra, el AFC lo paga el empleador (3%). No debe descontarse al trabajador. Solicita devolución."
-      );
-    }
-    if (tieneCaja && tipoSalud === "Fonasa" && saludDeclarado > Math.round(imponible * 0.028) + 2000) {
-      alertas.push(
-        "Con caja de compensación, Fonasa corresponde al 2,8% (la caja aporta el resto). Verifica el descuento."
-      );
-    }
-
-    return { imponible, items, totalEsperado, totalDeclarado, totalDiferencia, alertas, nulidad };
+  function calcular(): ResultadoAuditoriaCotizaciones {
+    return calcularAuditoriaCotizaciones({
+      contratoTipo: CONTRATO_TIPO_MAP[tipoContrato],
+      sueldoImponible: Number(sueldoImponible) || 0,
+      afp: afpNombre,
+      montoAfpDeclarado: Number(montoAFP) || 0,
+      tipoSalud,
+      tieneCaja: tieneCaja ?? false,
+      montoSaludDeclarado: Number(montoSalud) || 0,
+      montoAfcDeclarado: Number(montoAFC) || 0,
+      fueDespedido: fueDespedido ?? false,
+      fechaDespido: fechaDespido || undefined,
+    });
   }
 
   async function calcularYRegistrar() {
@@ -177,13 +108,14 @@ export default function FormularioCotizaciones() {
           nombre,
           email: email || null,
           telefono,
-          resultado_total: Math.abs(res.totalDiferencia),
+          resultado_total: Math.abs(res.totalDiferencia) + res.montoNulidad,
           datos_calculo: {
             tipo: "cotizaciones",
             tipoContrato,
             imponible: Number(sueldoImponible),
             diferencia: res.totalDiferencia,
-            nulidad: res.nulidad,
+            nulidad: res.hayNulidad,
+            montoNulidad: res.montoNulidad,
           },
         }),
       });
@@ -199,6 +131,7 @@ export default function FormularioCotizaciones() {
     setPaso(1);
     setSueldoImponible(""); setMontoAFP(""); setMontoSalud(""); setMontoAFC("");
     setTipoContrato("indefinido"); setAfpNombre("Capital"); setTipoSalud("Fonasa"); setTieneCaja(null);
+    setFueDespedido(null); setFechaDespido("");
     setNombre(""); setEmail(""); setTelefono("");
     setResultado(null); setEmailRegistrado("");
   }
@@ -284,15 +217,15 @@ export default function FormularioCotizaciones() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">AFP</label>
-              <select className={selectCls} value={afpNombre} onChange={(e) => setAfpNombre(e.target.value)}>
+              <select className={selectCls} value={afpNombre} onChange={(e) => setAfpNombre(e.target.value as AFP)}>
                 {AFPS.map((a) => <option key={a}>{a}</option>)}
               </select>
             </div>
             {sueldoImponible && (
               <div className="bg-blue-50 border border-blue-100 rounded-lg px-4 py-3 text-sm text-blue-700">
-                AFP esperado ({((AFP_RATES[afpNombre] ?? 0.1127) * 100).toFixed(2)}%):&nbsp;
+                AFP esperado ({((AFP_RATES_REFERENCIA[afpNombre] ?? 0.1127) * 100).toFixed(2)}%):&nbsp;
                 <span className="font-semibold">
-                  {fmt(Math.round(Number(sueldoImponible) * (AFP_RATES[afpNombre] ?? 0.1127)))}
+                  {fmt(Math.round(Number(sueldoImponible) * (AFP_RATES_REFERENCIA[afpNombre] ?? 0.1127)))}
                 </span>
               </div>
             )}
@@ -432,10 +365,48 @@ export default function FormularioCotizaciones() {
                 onChange={(e) => setMontoAFC(e.target.value)}
               />
             </div>
+            <div className="pt-2 border-t border-gray-100">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">¿Fuiste despedido de este trabajo?</label>
+              <div className="flex gap-3">
+                {([true, false] as const).map((v) => (
+                  <button
+                    key={String(v)}
+                    onClick={() => setFueDespedido(v)}
+                    className={`flex-1 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                      fueDespedido === v
+                        ? "border-blue-500 bg-blue-50 text-blue-700"
+                        : "border-gray-200 text-gray-600 hover:border-gray-300"
+                    }`}
+                  >
+                    {v ? "Sí" : "No, sigo trabajando ahí"}
+                  </button>
+                ))}
+              </div>
+              {fueDespedido && (
+                <div className="mt-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Fecha del despido</label>
+                  <input
+                    type="date"
+                    className={inputCls}
+                    value={fechaDespido}
+                    onChange={(e) => setFechaDespido(e.target.value)}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Si hay diferencias en tus cotizaciones, calculamos cuánto te corresponde por nulidad del despido.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex gap-3">
             <button onClick={retroceder} className={btnSecondary}>← Atrás</button>
-            <button onClick={avanzar} className={btnPrimary}>Continuar →</button>
+            <button
+              onClick={avanzar}
+              disabled={fueDespedido === true && !fechaDespido}
+              className={`${btnPrimary} disabled:opacity-40`}
+            >
+              Continuar →
+            </button>
           </div>
         </div>
       )}
@@ -537,10 +508,10 @@ function ItemFila({ item }: { item: { label: string; esperado: number; declarado
   );
 }
 
-function ResultadoCotizaciones({
+export function ResultadoCotizaciones({
   resultado, emailRegistrado, onVolver,
 }: {
-  resultado: Resultado;
+  resultado: ResultadoAuditoriaCotizaciones;
   emailRegistrado: string;
   onVolver: () => void;
 }) {
@@ -550,20 +521,22 @@ function ResultadoCotizaciones({
       {/* Header */}
       <div
         className={`rounded-2xl p-6 text-center space-y-2 ${
-          correcto ? "bg-green-50 border border-green-200" : resultado.nulidad ? "bg-red-50 border border-red-200" : "bg-amber-50 border border-amber-200"
+          correcto ? "bg-green-50 border border-green-200" : resultado.hayNulidad ? "bg-red-50 border border-red-200" : "bg-amber-50 border border-amber-200"
         }`}
       >
-        <p className={`text-xs font-semibold uppercase tracking-widest ${correcto ? "text-green-700" : resultado.nulidad ? "text-red-700" : "text-amber-700"}`}>
-          {correcto ? "Cotizaciones al día" : resultado.nulidad ? "Nulidad del despido detectada" : "Errores en cotizaciones"}
+        <p className={`text-xs font-semibold uppercase tracking-widest ${correcto ? "text-green-700" : resultado.hayNulidad ? "text-red-700" : "text-amber-700"}`}>
+          {correcto ? "Cotizaciones al día" : resultado.hayNulidad ? "Nulidad del despido detectada" : "Errores en cotizaciones"}
         </p>
-        <p className={`text-4xl font-extrabold leading-none ${correcto ? "text-green-800" : resultado.nulidad ? "text-red-800" : "text-amber-800"}`}>
-          {correcto ? "✓" : resultado.nulidad ? "⚖️" : fmt(Math.abs(resultado.totalDiferencia))}
+        <p className={`text-4xl font-extrabold leading-none ${correcto ? "text-green-800" : resultado.hayNulidad ? "text-red-800" : "text-amber-800"}`}>
+          {correcto ? "✓" : resultado.hayNulidad ? fmt(resultado.montoNulidad) : fmt(Math.abs(resultado.totalDiferencia))}
         </p>
-        {!correcto && !resultado.nulidad && (
+        {!correcto && !resultado.hayNulidad && (
           <p className={`text-sm font-medium text-amber-600`}>diferencia total detectada</p>
         )}
-        {resultado.nulidad && (
-          <p className="text-sm font-medium text-red-600">No se declaró AFP → despido puede ser nulo</p>
+        {resultado.hayNulidad && (
+          <p className="text-sm font-medium text-red-600">
+            {resultado.diasNulidad} días sin cotizar correctamente desde el despido
+          </p>
         )}
       </div>
 

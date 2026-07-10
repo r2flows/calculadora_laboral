@@ -2,35 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import type { AFP, ContratoTipo, TipoSalud } from "@/lib/calculos/tipos";
+import { calcularLiquidacion, type ResultadoLiquidacion } from "@/lib/calculos/liquidacion";
 
 /* ── constantes ───────────────────────────────────────────────────────── */
-const AFP_RATES: Record<string, number> = {
-  Capital: 0.1127,
-  Cuprum: 0.1144,
-  Habitat: 0.1127,
-  Modelo: 0.1058,
-  PlanVital: 0.1116,
-  Provida: 0.1145,
-  Uno: 0.1069,
-};
-const AFPS = Object.keys(AFP_RATES);
-const UTM = 67_294;
-const TOPE_GRATIFICACION = 209_750; // 4.75 × IMM 2025 / 12
-
-function calcImpuesto(base: number): number {
-  const tramos = [
-    { lim: 13.5, tasa: 0, ded: 0 },
-    { lim: 30, tasa: 0.04, ded: 0.54 },
-    { lim: 50, tasa: 0.08, ded: 1.74 },
-    { lim: 70, tasa: 0.135, ded: 4.49 },
-    { lim: 90, tasa: 0.23, ded: 11.14 },
-    { lim: 120, tasa: 0.304, ded: 17.8 },
-    { lim: 150, tasa: 0.35, ded: 23.32 },
-    { lim: Infinity, tasa: 0.4, ded: 30.82 },
-  ];
-  const t = tramos.find((r) => base / UTM <= r.lim)!;
-  return t.tasa === 0 ? 0 : Math.max(0, Math.round(base * t.tasa - t.ded * UTM));
-}
+const AFPS: AFP[] = ["Capital", "Cuprum", "Habitat", "Modelo", "PlanVital", "Provida", "Uno"];
 
 const fmt = (n: number) =>
   n.toLocaleString("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 });
@@ -45,21 +21,12 @@ const btnSecondary =
 
 const PASOS = ["Contrato", "Remuneración", "Previsión", "Descuentos", "Tus datos", "Resultado"];
 
-/* ── tipos ────────────────────────────────────────────────────────────── */
-interface Resultado {
-  totalImponible: number;
-  gratificacionMonto: number;
-  descAFP: number;
-  descSalud: number;
-  descAFC: number;
-  descImpuesto: number;
-  totalHaberes: number;
-  totalDescuentos: number;
-  totalLiquidoCalculado: number;
-  montoRecibido: number;
-  diferencia: number;
-  alertas: string[];
-}
+// Mapeo entre las etiquetas de UI y el ContratoTipo del motor de cálculo.
+const CONTRATO_TIPO_MAP: Record<"indefinido" | "plazo" | "obra", ContratoTipo> = {
+  indefinido: "indefinido",
+  plazo: "plazo_fijo",
+  obra: "obra_faena",
+};
 
 /* ── componente ───────────────────────────────────────────────────────── */
 export default function FormularioLiquidacion() {
@@ -78,8 +45,8 @@ export default function FormularioLiquidacion() {
   const [colacion, setColacion] = useState("");
 
   // Paso 3 — Previsión
-  const [afp, setAfp] = useState("Capital");
-  const [tipoSalud, setTipoSalud] = useState<"Fonasa" | "Isapre">("Fonasa");
+  const [afp, setAfp] = useState<AFP>("Capital");
+  const [tipoSalud, setTipoSalud] = useState<TipoSalud>("Fonasa");
   const [montoIsapre, setMontoIsapre] = useState("");
 
   // Paso 4 — Descuentos + monto recibido
@@ -93,7 +60,7 @@ export default function FormularioLiquidacion() {
   const [email, setEmail] = useState("");
   const [telefono, setTelefono] = useState("");
 
-  const [resultado, setResultado] = useState<Resultado | null>(null);
+  const [resultado, setResultado] = useState<ResultadoLiquidacion | null>(null);
   const [emailRegistrado, setEmailRegistrado] = useState("");
   const [enviando, setEnviando] = useState(false);
 
@@ -102,70 +69,24 @@ export default function FormularioLiquidacion() {
   function retroceder() { setPaso((p) => p - 1); }
 
   /* ── calcular ────────────────────────────────────────────────────────── */
-  function calcular(): Resultado {
-    const base = Number(sueldoBase) || 0;
-    const extras = Number(horasExtraMonto) || 0;
-    const bonos = Number(bonosImponibles) || 0;
-    const mov = Number(movilizacion) || 0;
-    const col = Number(colacion) || 0;
-    const anticipo = Number(anticipoSueldo) || 0;
-    const otros = Number(otrosDescuentos) || 0;
-    const asig = Number(asignacionFamiliar) || 0;
-    const recibido = Number(montoRecibido) || 0;
-
-    let grat = 0;
-    if (recibeGratificacion) {
-      grat = Number(gratificacionFija) > 0
-        ? Number(gratificacionFija)
-        : Math.min(Math.round(base * 0.25), TOPE_GRATIFICACION);
-    }
-
-    const totalImponible = base + extras + bonos + grat;
-
-    const descAFP = Math.round(totalImponible * (AFP_RATES[afp] ?? 0.1127));
-    const descSalud =
-      tipoSalud === "Fonasa"
-        ? Math.round(totalImponible * 0.07)
-        : Number(montoIsapre) || 0;
-    const descAFC =
-      tipoContrato === "indefinido"
-        ? Math.round(totalImponible * 0.006)
-        : 0;
-
-    const baseImpuesto = totalImponible - descAFP - descSalud;
-    const descImpuesto = calcImpuesto(baseImpuesto);
-
-    const totalHaberes = totalImponible + mov + col + asig;
-    const totalDescuentos = descAFP + descSalud + descAFC + descImpuesto + anticipo + otros;
-    const totalLiquidoCalculado = totalHaberes - totalDescuentos;
-    const diferencia = recibido - totalLiquidoCalculado;
-
-    const alertas: string[] = [];
-    if (Math.abs(diferencia) > 1000) {
-      alertas.push(
-        diferencia < 0
-          ? `Te pagaron ${fmt(Math.abs(diferencia))} menos de lo que corresponde.`
-          : `Recibiste ${fmt(diferencia)} más de lo calculado. Revisa si hay conceptos adicionales.`
-      );
-    }
-    if (tipoContrato !== "indefinido") {
-      alertas.push("En contratos a plazo fijo u obra, el AFC lo paga íntegramente el empleador (3%). No debe descontarse de tu sueldo.");
-    }
-
-    return {
-      totalImponible,
-      gratificacionMonto: grat,
-      descAFP,
-      descSalud,
-      descAFC,
-      descImpuesto,
-      totalHaberes,
-      totalDescuentos,
-      totalLiquidoCalculado,
-      montoRecibido: recibido,
-      diferencia,
-      alertas,
-    };
+  function calcular(): ResultadoLiquidacion {
+    return calcularLiquidacion({
+      contratoTipo: CONTRATO_TIPO_MAP[tipoContrato],
+      sueldoBase: Number(sueldoBase) || 0,
+      horasExtraMonto: Number(horasExtraMonto) || 0,
+      bonosImponibles: Number(bonosImponibles) || 0,
+      recibeGratificacion: recibeGratificacion ?? false,
+      gratificacionFija: Number(gratificacionFija) || 0,
+      movilizacion: Number(movilizacion) || 0,
+      colacion: Number(colacion) || 0,
+      afp,
+      tipoSalud,
+      montoIsapre: Number(montoIsapre) || 0,
+      anticipoSueldo: Number(anticipoSueldo) || 0,
+      otrosDescuentos: Number(otrosDescuentos) || 0,
+      asignacionFamiliar: Number(asignacionFamiliar) || 0,
+      montoRecibido: Number(montoRecibido) || 0,
+    });
   }
 
   async function calcularYRegistrar() {
@@ -378,7 +299,7 @@ export default function FormularioLiquidacion() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">AFP</label>
-              <select className={selectCls} value={afp} onChange={(e) => setAfp(e.target.value)}>
+              <select className={selectCls} value={afp} onChange={(e) => setAfp(e.target.value as AFP)}>
                 {AFPS.map((a) => <option key={a}>{a}</option>)}
               </select>
             </div>
@@ -545,7 +466,7 @@ export default function FormularioLiquidacion() {
       )}
 
       {/* ── Paso 6: Resultado ── */}
-      {paso === 6 && resultado && <ResultadoLiquidacion resultado={resultado} emailRegistrado={emailRegistrado} onVolver={reiniciar} />}
+      {paso === 6 && resultado && <ResultadoLiquidacionView resultado={resultado} emailRegistrado={emailRegistrado} onVolver={reiniciar} />}
     </div>
   );
 }
@@ -571,10 +492,10 @@ function Fila({
   );
 }
 
-function ResultadoLiquidacion({
+export function ResultadoLiquidacionView({
   resultado, emailRegistrado, onVolver,
 }: {
-  resultado: Resultado;
+  resultado: ResultadoLiquidacion;
   emailRegistrado: string;
   onVolver: () => void;
 }) {

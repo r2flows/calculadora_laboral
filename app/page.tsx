@@ -48,7 +48,7 @@ export default function Home() {
 
             {/* Card 1 — Finiquito */}
             <Link
-              href="/finiquito"
+              href="/wizard?flujo=finiquito"
               className="group flex items-start justify-between gap-4 p-5 rounded-2xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all"
             >
               <div className="flex items-start gap-4">
@@ -68,7 +68,7 @@ export default function Home() {
 
             {/* Card 2 — Liquidación */}
             <Link
-              href="/liquidacion"
+              href="/wizard?flujo=liquidacion"
               className="group flex items-start justify-between gap-4 p-5 rounded-2xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all"
             >
               <div className="flex items-start gap-4">
@@ -88,7 +88,7 @@ export default function Home() {
 
             {/* Card 3 — Cotizaciones */}
             <Link
-              href="/cotizaciones"
+              href="/wizard?flujo=cotizaciones"
               className="group flex items-start justify-between gap-4 p-5 rounded-2xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all"
             >
               <div className="flex items-start gap-4">
@@ -123,7 +123,7 @@ export default function Home() {
       <footer className="border-t border-gray-100 py-5 px-6">
         <div className="max-w-sm mx-auto flex justify-between items-center text-xs text-gray-400">
           <span>Asesoría laboral · Chile · 2026</span>
-          <Link href="/login" className="hover:text-gray-600 transition-colors">
+          <Link href="/admin/login" className="hover:text-gray-600 transition-colors">
             Administración
           </Link>
         </div>
