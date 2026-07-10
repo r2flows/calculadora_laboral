@@ -1,6 +1,6 @@
 import { diasMesEnCurso, diasEnMes } from "./conteo";
 import { calcularDescuentos, type DescuentosCalculados } from "./cotizaciones";
-import type { AFP, TipoSalud } from "./tipos";
+import type { AFP, ContratoTipo, TipoSalud } from "./tipos";
 
 export interface ResultadoUltimosDias {
   diasTrabajados: number;
@@ -19,12 +19,14 @@ export function calcularRemuneracionUltimosDias(
   sueldoMensual: number,
   afp: AFP,
   tipoSalud: TipoSalud,
-  montoIsapre: number
+  montoIsapre: number,
+  contratoTipo: ContratoTipo
 ): ResultadoUltimosDias {
   const diasTrabajados = diasMesEnCurso(fechaDespido);
   const totalDiasMes   = diasEnMes(fechaDespido);
   const montoBruto     = Math.round((sueldoMensual / totalDiasMes) * diasTrabajados);
-  const cotizaciones   = calcularDescuentos(montoBruto, afp, tipoSalud, montoIsapre);
+  const fechaISO       = fechaDespido.toISOString().split("T")[0];
+  const cotizaciones   = calcularDescuentos(montoBruto, afp, tipoSalud, montoIsapre, contratoTipo, fechaISO);
 
   return {
     diasTrabajados,

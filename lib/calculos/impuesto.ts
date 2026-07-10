@@ -1,9 +1,8 @@
-// UTM vigente 2025 (se actualiza mensualmente; valor referencial)
-const UTM = 67_294;
+import { utmVigente } from "./vigencias";
 
 // Tabla impuesto segunda categoría mensual — tramos en UTM, deducción en UTM
-// Fuente: SII Chile 2025
-const TRAMOS: { limiteUTM: number; tasa: number; deduccionUTM: number }[] = [
+// Fuente: SII Chile
+export const TRAMOS_IMPUESTO: { limiteUTM: number; tasa: number; deduccionUTM: number }[] = [
   { limiteUTM: 13.5,  tasa: 0,      deduccionUTM: 0 },
   { limiteUTM: 30,    tasa: 0.04,   deduccionUTM: 0.54 },
   { limiteUTM: 50,    tasa: 0.08,   deduccionUTM: 1.74 },
@@ -18,17 +17,25 @@ const TRAMOS: { limiteUTM: number; tasa: number; deduccionUTM: number }[] = [
  * Impuesto único segunda categoría mensual.
  * Base imponible = remuneración bruta - AFP - salud (no AFC).
  * Los tramos se expresan en UTM; la deducción elimina el efecto de salto entre tramos.
+ * `fecha` (ISO, por defecto hoy) determina la UTM vigente (ver lib/calculos/vigencias.ts).
  */
-export function calcularImpuestoRenta(baseImponible: number): number {
-  const baseUTM = baseImponible / UTM;
+export function calcularImpuestoRenta(
+  baseImponible: number,
+  fecha: string = new Date().toISOString().split("T")[0]
+): number {
+  const utm = utmVigente(fecha);
+  const baseUTM = baseImponible / utm;
 
-  const tramo = TRAMOS.find((t) => baseUTM <= t.limiteUTM);
+  const tramo = TRAMOS_IMPUESTO.find((t) => baseUTM <= t.limiteUTM);
   if (!tramo || tramo.tasa === 0) return 0;
 
-  const impuesto = baseImponible * tramo.tasa - tramo.deduccionUTM * UTM;
+  const impuesto = baseImponible * tramo.tasa - tramo.deduccionUTM * utm;
   return Math.max(0, Math.round(impuesto));
 }
 
-export function tributaImpuesto(baseImponible: number): boolean {
-  return baseImponible / UTM > 13.5;
+export function tributaImpuesto(
+  baseImponible: number,
+  fecha: string = new Date().toISOString().split("T")[0]
+): boolean {
+  return baseImponible / utmVigente(fecha) > 13.5;
 }

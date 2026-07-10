@@ -1,18 +1,10 @@
-import type { AFP, TipoSalud } from "./tipos";
-
-// Tasas AFP vigentes (tasa trabajador, excluye SIS)
-const TASAS_AFP: Record<AFP, number> = {
-  Capital: 0.1127,
-  Cuprum: 0.1144,
-  Habitat: 0.1127,
-  Modelo: 0.1058,
-  PlanVital: 0.1116,
-  Provida: 0.1145,
-  Uno: 0.1069,
-};
-
-const TASA_FONASA = 0.07;
-const TASA_AFC_TRABAJADOR = 0.006; // contrato indefinido
+import type { AFP, ContratoTipo, TipoSalud } from "./tipos";
+import {
+  tasaAfpVigente,
+  TASA_FONASA,
+  TASA_AFC_TRABAJADOR_INDEFINIDO,
+  calcularAsignacionFamiliarVigente,
+} from "./vigencias";
 
 /**
  * Gratificación mensual legal (Art. 50 CT):
@@ -37,18 +29,29 @@ export interface DescuentosCalculados {
   total: number;
 }
 
+/**
+ * Descuentos previsionales sobre una remuneración imponible.
+ * El AFC del trabajador (0,6%) solo aplica en contratos indefinidos — en plazo fijo
+ * u obra/faena el AFC lo paga íntegramente el empleador (ver lib/calculos/causales.ts,
+ * calcularAfcEmpleador). Las tasas AFP se resuelven por fecha vigente (vigencias.ts).
+ */
 export function calcularDescuentos(
   remuneracionImponible: number,
   afp: AFP,
   tipoSalud: TipoSalud,
-  montoIsapre: number
+  montoIsapre: number,
+  contratoTipo: ContratoTipo,
+  fecha: string
 ): DescuentosCalculados {
-  const descAfp = Math.round(remuneracionImponible * TASAS_AFP[afp]);
+  const descAfp = Math.round(remuneracionImponible * tasaAfpVigente(afp, fecha));
   const descSalud =
     tipoSalud === "Fonasa"
       ? Math.round(remuneracionImponible * TASA_FONASA)
       : montoIsapre;
-  const descAfc = Math.round(remuneracionImponible * TASA_AFC_TRABAJADOR);
+  const descAfc =
+    contratoTipo === "indefinido"
+      ? Math.round(remuneracionImponible * TASA_AFC_TRABAJADOR_INDEFINIDO)
+      : 0;
 
   return {
     afp: descAfp,
@@ -58,23 +61,10 @@ export function calcularDescuentos(
   };
 }
 
-// Tabla asignación familiar 2024 (tramos por ingreso mensual)
-export const TABLA_ASIGNACION_FAMILIAR: {
-  montoMaximo: number;
-  montoAsignacion: number;
-}[] = [
-  { montoMaximo: 390255, montoAsignacion: 16899 },
-  { montoMaximo: 569646, montoAsignacion: 10368 },
-  { montoMaximo: 882589, montoAsignacion: 3276 },
-  { montoMaximo: Infinity, montoAsignacion: 0 },
-];
-
 export function calcularAsignacionFamiliar(
   sueldoBruto: number,
-  cargas: number
+  cargas: number,
+  fecha: string
 ): number {
-  const tramo = TABLA_ASIGNACION_FAMILIAR.find(
-    (t) => sueldoBruto <= t.montoMaximo
-  );
-  return (tramo?.montoAsignacion ?? 0) * cargas;
+  return calcularAsignacionFamiliarVigente(sueldoBruto, cargas, fecha);
 }
