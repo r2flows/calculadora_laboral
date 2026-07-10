@@ -3,13 +3,40 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient as createSupabasePublic } from "@supabase/supabase-js";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM   = process.env.FROM_EMAIL ?? "onboarding@resend.dev";
 const SITE   = process.env.NEXT_PUBLIC_SITE_URL ?? "https://calculadoralaboral-three.vercel.app";
 
+interface DocumentoPendiente {
+  tipo: string;
+  nombre: string;
+  base64: string;
+  mediaType: string;
+  datosExtraidos?: Record<string, unknown>;
+}
+
+const EXTENSION_POR_MEDIA_TYPE: Record<string, string> = {
+  "application/pdf": "pdf",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+interface LeadBody {
+  nombre: string;
+  rut?: string;
+  email?: string;
+  telefono: string;
+  resultado_total?: number;
+  datos_calculo?: Record<string, unknown>;
+  documentosPendientes?: DocumentoPendiente[];
+}
+
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const { nombre, rut, email, telefono, resultado_total, datos_calculo } = body;
+  const body: LeadBody = await req.json();
+  const {
+    nombre, rut, email, telefono, resultado_total, datos_calculo,
+    documentosPendientes,
+  } = body;
 
   if (!nombre || !telefono) {
     return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
@@ -36,54 +63,117 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Error al guardar" }, { status: 500 });
   }
 
+  // Persistir documentos que el usuario subió durante el wizard (ya extraídos por
+  // app/api/extraccion antes de tener cuenta) — no se vuelve a llamar a Claude aquí,
+  // solo se guarda el archivo + el resultado de la extracción ya obtenido.
+  if (documentosPendientes?.length) {
+    await Promise.all(
+      documentosPendientes.map(async (doc) => {
+        try {
+          const ext = EXTENSION_POR_MEDIA_TYPE[doc.mediaType] ?? "bin";
+          const storagePath = `${cliente.id}/${crypto.randomUUID()}.${ext}`;
+          const buffer = Buffer.from(doc.base64, "base64");
+
+          const { error: uploadError } = await supabase.storage
+            .from("documentos-clientes")
+            .upload(storagePath, buffer, { contentType: doc.mediaType, upsert: false });
+
+          if (uploadError) throw new Error(uploadError.message);
+
+          await supabase.from("documentos").insert({
+            cliente_id: cliente.id,
+            tipo: doc.tipo,
+            nombre_archivo: doc.nombre,
+            storage_path: storagePath,
+            estado: doc.datosExtraidos ? "procesado" : "pendiente",
+            datos_extraidos: doc.datosExtraidos ?? null,
+          });
+        } catch (docError) {
+          console.error("Error guardando documento pendiente del wizard:", docError);
+        }
+      })
+    );
+  }
+
   let portalCreado = false;
 
   if (email) {
     try {
       // Crear usuario en Supabase Auth
-      const { data: authData } = await supabase.auth.admin.createUser({
+      const { data: authData, error: createError } = await supabase.auth.admin.createUser({
         email,
         email_confirm: true,
         user_metadata: { nombre, tipo: "cliente" },
       });
 
-      if (authData?.user) {
+      // Si el correo ya tiene una cuenta de Auth (otro lead anterior con el mismo
+      // email, o incluso una cuenta de staff), createUser falla — reutilizamos esa
+      // cuenta existente en vez de dejar auth_user_id sin vincular (lo que dejaba
+      // al cliente sin acceso permanente a su portal).
+      let authUserId = authData?.user?.id ?? null;
+      if (!authUserId && createError) {
+        const { data: existentes } = await supabase.auth.admin.listUsers();
+        authUserId = existentes?.users.find(
+          (u) => u.email?.toLowerCase() === email.toLowerCase()
+        )?.id ?? null;
+      }
+
+      if (authUserId) {
         await supabase
           .from("clientes")
-          .update({ auth_user_id: authData.user.id })
+          .update({ auth_user_id: authUserId })
           .eq("id", cliente.id);
 
-        // Canal primario: SMTP propio de Supabase (no depende de dominio verificado)
-        const supabasePublic = createSupabasePublic(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        );
-        const { error: otpError } = await supabasePublic.auth.signInWithOtp({
-          email,
-          options: { shouldCreateUser: false, emailRedirectTo: `${SITE}/cliente` },
-        });
-
-        if (otpError) {
-          console.error("Error enviando OTP via Supabase:", otpError.message);
-        } else {
-          portalCreado = true;
-        }
-
-        // Canal secundario: email enriquecido via Resend (puede fallar sin bloquear)
-        supabase.auth.admin.generateLink({
+        // Generamos el link nosotros (generateLink no envía correo, solo lo crea)
+        // para poder decidir qué canal lo entrega.
+        const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
           type: "magiclink",
           email,
-          options: { redirectTo: `${SITE}/cliente` },
-        }).then(({ data: linkData }) => {
-          if (linkData?.properties?.action_link) {
-            resend.emails.send({
+          options: { redirectTo: `${SITE}/auth/callback?next=/cliente` },
+        });
+
+        if (linkError) {
+          console.error("Error generando magic link:", linkError.message);
+        }
+
+        let emailEnviado = false;
+
+        // Canal primario: email de bienvenida con marca propia (monto, pasos, botón) vía Resend
+        if (linkData?.properties?.action_link && process.env.RESEND_API_KEY) {
+          try {
+            await new Resend(process.env.RESEND_API_KEY).emails.send({
               from: FROM,
               to: email,
               subject: "Tu estimación está lista — Accede a tu portal",
-              html: bienvenidaTemplate(nombre, linkData.properties.action_link, resultado_total),
-            }).catch(() => {});
+              html: bienvenidaTemplate(nombre, linkData.properties.action_link, resultado_total ?? 0),
+            });
+            emailEnviado = true;
+          } catch (resendError) {
+            console.error("Error enviando email de bienvenida via Resend:", resendError);
           }
-        }).catch(() => {});
+        }
+
+        // Canal de respaldo: si Resend no está configurado o falló, usamos el envío
+        // nativo de Supabase Auth (plantilla genérica) para que el cliente igual
+        // reciba un correo con el que entrar a su portal.
+        if (!emailEnviado) {
+          const supabasePublic = createSupabasePublic(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+          );
+          const { error: otpError } = await supabasePublic.auth.signInWithOtp({
+            email,
+            options: { shouldCreateUser: false, emailRedirectTo: `${SITE}/auth/callback?next=/cliente` },
+          });
+
+          if (otpError) {
+            console.error("Error enviando OTP via Supabase:", otpError.message);
+          } else {
+            emailEnviado = true;
+          }
+        }
+
+        portalCreado = emailEnviado;
       }
     } catch (authError) {
       console.error("Error creando acceso portal:", authError);
