@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM   = process.env.FROM_EMAIL ?? "portal@laboral.agentloop.cl";
 const SITE   = process.env.NEXT_PUBLIC_SITE_URL ?? "https://calculadoralaboral-three.vercel.app";
 
@@ -15,7 +14,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabase.auth.admin.generateLink({
     type: "magiclink",
     email,
-    options: { redirectTo: `${SITE}/cliente` },
+    options: { redirectTo: `${SITE}/auth/callback?next=/cliente` },
   });
 
   if (error || !data?.properties?.action_link) {
@@ -25,6 +24,11 @@ export async function POST(req: NextRequest) {
 
   const link = data.properties.action_link;
 
+  if (!process.env.RESEND_API_KEY) {
+    console.error("RESEND_API_KEY no configurada — no se puede enviar el email");
+    return NextResponse.json({ error: "Envío de email no configurado" }, { status: 500 });
+  }
+  const resend = new Resend(process.env.RESEND_API_KEY);
   const { error: sendError } = await resend.emails.send({
     from: FROM,
     to: email,

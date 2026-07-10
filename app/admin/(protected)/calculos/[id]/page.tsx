@@ -2,26 +2,21 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import EstadoForm from "@/app/abogados/clientes/[id]/EstadoForm";
+import EliminarClienteButton from "@/components/admin/EliminarClienteButton";
+import { labelCausal } from "@/lib/calculos/causalesLegado";
 
 // ─── Mapas de traducción ────────────────────────────────────────────────────
-
-const CAUSAL: Record<string, string> = {
-  art159_1:   "Art. 159 N°1 — Mutuo acuerdo",
-  art159_2:   "Art. 159 N°2 — Vencimiento de plazo",
-  art159_3:   "Art. 159 N°3 — Conclusión del trabajo",
-  art159_4:   "Art. 159 N°4 — Caso fortuito",
-  art159_5:   "Art. 159 N°5 — Renuncia voluntaria",
-  art159_6:   "Art. 159 N°6 — Muerte del trabajador",
-  art160:     "Art. 160 — Causal grave (sin indemnización)",
-  art161:     "Art. 161 — Necesidades de la empresa",
-  art161a:    "Art. 161a — Desahucio",
-  autodespido:"Autodespido / Despido indirecto",
-};
 
 const CAMPO: Record<string, { label: string; fmt: "currency" | "date" | "bool" | "causal" | "dias" | "text" }> = {
   fechaInicio:           { label: "Fecha inicio contrato",       fmt: "date" },
   fechaTermino:          { label: "Fecha término",               fmt: "date" },
   causal:                { label: "Causal de término",           fmt: "causal" },
+  contratoTipo:          { label: "Tipo de contrato",             fmt: "text" },
+  causalEsCorrecta:      { label: "¿Causal invocada correctamente?", fmt: "bool" },
+  tienePruebas:          { label: "¿Tiene pruebas de despido injustificado?", fmt: "bool" },
+  recibioCarta30Dias:    { label: "¿Recibió carta con 30 días de aviso?", fmt: "bool" },
+  afcDescontadoEnFiniquito: { label: "AFC ya descontado en finiquito", fmt: "currency" },
+  cotizacionesAlDia:     { label: "¿Cotizaciones al día al despido?", fmt: "bool" },
   sueldoBase:            { label: "Sueldo base",                 fmt: "currency" },
   movilizacion:          { label: "Movilización mensual",        fmt: "currency" },
   colacion:              { label: "Colación mensual",            fmt: "currency" },
@@ -31,6 +26,11 @@ const CAMPO: Record<string, { label: string; fmt: "currency" | "date" | "bool" |
   recibeGratificacion:   { label: "Recibe gratificación",        fmt: "bool" },
   diasVacacionesAnuales: { label: "Vacaciones anuales",          fmt: "dias" },
   diasVacacionesTomados: { label: "Días de vacaciones tomados",  fmt: "dias" },
+  jornadaSemanal:        { label: "Jornada semanal (hrs)",       fmt: "text" },
+  reciboRemuneracionUltimoMes: { label: "¿Ya pagaron el último mes?", fmt: "bool" },
+  anticipoSueldo:        { label: "Anticipo de sueldo",          fmt: "currency" },
+  otrosDescuentos:       { label: "Otros descuentos",            fmt: "currency" },
+  asignacionFamiliar:    { label: "Asignación familiar",         fmt: "currency" },
 };
 
 const TIPO_DOC: Record<string, string> = {
@@ -41,24 +41,47 @@ const TIPO_DOC: Record<string, string> = {
   otro:          "Otro documento",
 };
 
+// Incluye ambos formatos: snake_case (documentos extraídos antes de unificar el
+// pipeline de IA, ver lib/extraccion/) y camelCase (documentos extraídos con el motor
+// unificado desde ahora en adelante) — mismo criterio no destructivo que labelCausal.
 const CAMPO_EXTRAIDO: Record<string, { label: string; fmt: "currency" | "text" | "date" }> = {
   empleador:               { label: "Empleador",             fmt: "text" },
   rut_empleador:           { label: "RUT empleador",         fmt: "text" },
+  rutEmpleador:            { label: "RUT empleador",         fmt: "text" },
   periodo:                 { label: "Período",               fmt: "text" },
   sueldo_base:             { label: "Sueldo base",           fmt: "currency" },
+  sueldoBase:              { label: "Sueldo base",           fmt: "currency" },
   gratificacion:           { label: "Gratificación",         fmt: "currency" },
   movilizacion:            { label: "Movilización",          fmt: "currency" },
   colacion:                { label: "Colación",              fmt: "currency" },
+  bonos:                   { label: "Bonos",                 fmt: "currency" },
   horas_extra:             { label: "Horas extra",           fmt: "currency" },
+  horasExtraMonto:         { label: "Horas extra",           fmt: "currency" },
   total_haberes:           { label: "Total haberes",         fmt: "currency" },
+  totalHaberes:            { label: "Total haberes",         fmt: "currency" },
   afp_nombre:              { label: "AFP",                   fmt: "text" },
+  afp:                     { label: "AFP",                   fmt: "text" },
+  prevision:               { label: "Previsión",             fmt: "text" },
+  montoIsapre:             { label: "Monto Isapre",          fmt: "currency" },
   descuento_afp:           { label: "Descuento AFP",         fmt: "currency" },
+  descuentoAfp:            { label: "Descuento AFP",         fmt: "currency" },
   descuento_salud:         { label: "Descuento salud",       fmt: "currency" },
+  descuentoSalud:          { label: "Descuento salud",       fmt: "currency" },
   total_descuentos:        { label: "Total descuentos",      fmt: "currency" },
+  totalDescuentos:         { label: "Total descuentos",      fmt: "currency" },
   liquido_a_pagar:         { label: "Líquido a pagar",       fmt: "currency" },
+  liquidoRecibido:         { label: "Líquido recibido",      fmt: "currency" },
   fecha_inicio_contrato:   { label: "Inicio contrato",       fmt: "date" },
+  fechaIngreso:            { label: "Inicio contrato",       fmt: "date" },
   fecha_termino_contrato:  { label: "Término contrato",      fmt: "date" },
+  fechaEgreso:             { label: "Término contrato",      fmt: "date" },
   causal_termino:          { label: "Causal de término",     fmt: "text" },
+  causal:                  { label: "Causal de término",     fmt: "text" },
+  fechaCartaAviso:         { label: "Fecha carta de aviso",   fmt: "date" },
+  montoFiniquitoFirmado:   { label: "Monto finiquito firmado", fmt: "currency" },
+  afcDescontado:           { label: "AFC descontado",        fmt: "currency" },
+  contratoTipo:            { label: "Tipo de contrato",      fmt: "text" },
+  jornadaSemanal:          { label: "Jornada semanal (hrs)", fmt: "text" },
 };
 
 // ─── Helpers de formateo ────────────────────────────────────────────────────
@@ -80,7 +103,7 @@ function renderValor(v: unknown, tipo: "currency" | "date" | "bool" | "causal" |
   if (tipo === "currency")  return fmtCLP(v);
   if (tipo === "date")      return fmtFecha(v);
   if (tipo === "bool")      return v ? "Sí" : "No";
-  if (tipo === "causal")    return CAUSAL[String(v)] ?? String(v);
+  if (tipo === "causal")    return labelCausal(v);
   if (tipo === "dias")      return `${v} días hábiles`;
   return String(v);
 }
@@ -118,8 +141,8 @@ export default async function AuditoriaCliente({ params }: { params: { id: strin
       {/* Encabezado */}
       <div className="flex items-start justify-between">
         <div>
-          <Link href="/admin/clientes" className="text-xs text-gray-400 hover:text-gray-600 mb-1 block">
-            ← Volver a clientes
+          <Link href="/admin/calculos" className="text-xs text-gray-400 hover:text-gray-600 mb-1 block">
+            ← Volver a cálculos
           </Link>
           <h1 className="text-xl font-bold text-gray-800">{cliente.nombre}</h1>
           <p className="text-sm text-gray-400">
@@ -127,7 +150,15 @@ export default async function AuditoriaCliente({ params }: { params: { id: strin
             {abogado ? ` · Abogado: ${abogado.nombre}` : ""}
           </p>
         </div>
-        <EstadoForm clienteId={cliente.id} estadoActual={cliente.estado} />
+        <div className="flex flex-col items-end gap-2">
+          <EstadoForm clienteId={cliente.id} estadoActual={cliente.estado} />
+          <EliminarClienteButton
+            clienteId={cliente.id}
+            nombre={cliente.nombre}
+            redirectTo="/admin/calculos"
+            variant="boton"
+          />
+        </div>
       </div>
 
       {/* Contacto */}
@@ -166,45 +197,97 @@ export default async function AuditoriaCliente({ params }: { params: { id: strin
           </h2>
           {(() => {
             const n = (v: unknown) => (typeof v === "number" ? v : 0);
+            const pctFmt = (v: unknown) => `${(n(v) * 100).toFixed(2)}%`;
             const cotiz = (resultado.cotizacionesUltimosDias as Record<string, number>) ?? {};
             const alertas = Array.isArray(resultado.alertas) ? (resultado.alertas as string[]) : [];
+            const alertasInternas = Array.isArray(resultado.alertasInternas) ? (resultado.alertasInternas as string[]) : [];
             return (
               <div className="space-y-2">
-                {alertas.length > 0 && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3 space-y-1">
-                    <p className="text-xs font-semibold text-red-700">Alertas</p>
-                    {alertas.map((a, i) => <p key={i} className="text-xs text-red-600">{a}</p>)}
+                {alertasInternas.length > 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3 space-y-1.5">
+                    <p className="text-xs font-semibold text-red-700 uppercase tracking-wide">
+                      ⚠️ Alertas internas — solo admin/abogado, requieren validación legal
+                    </p>
+                    {alertasInternas.map((a, i) => <p key={i} className="text-xs text-red-700 leading-relaxed">{a}</p>)}
+                    <p className="text-[10px] text-red-400 pt-1">
+                      Nunca comunicar estas conclusiones al cliente sin que un abogado confirme la causal y las pruebas declaradas.
+                    </p>
                   </div>
                 )}
+                {alertas.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3 space-y-1">
+                    <p className="text-xs font-semibold text-amber-700">Alertas (histórico — leads antiguos)</p>
+                    {alertas.map((a, i) => <p key={i} className="text-xs text-amber-700">{a}</p>)}
+                  </div>
+                )}
+
+                <DesgSeccion titulo="Tiempos y remuneración base" />
                 <div className="divide-y divide-gray-100 text-sm">
-                  <DesgRow label="Meses trabajados" value={`${n(resultado.mesesTrabajados)} meses ${n(resultado.diasTrabajados)} días`} />
+                  <DesgRow label="Tiempo trabajado" value={`${n(resultado.mesesTrabajados)} meses ${n(resultado.diasTrabajados)} días`} />
+                  <DesgRow label="· Años de servicio (tope 11)" value={`${n(resultado.anosServicio)} años`} muted />
+                  <DesgRow label="Tope gratificación mensual (4,75 × IMM / 12)" value={fmtCLP(resultado.topeGratificacionMensual)} muted />
                   <DesgRow label="Remuneración imponible mensual" value={fmtCLP(resultado.remuneracionImponibleTotal)} />
                   {n(resultado.gratificacionMensual) > 0 && (
                     <DesgRow label="· Gratificación mensual incluida" value={fmtCLP(resultado.gratificacionMensual)} muted />
                   )}
-                  {n(resultado.remUltimosDias) > 0 && (<>
-                    <DesgRow label="Remuneración últimos días (líquido)" value={fmtCLP(resultado.remUltimosDias)} />
+                  <DesgRow label="Valor día (imponible / 30)" value={fmtCLP(resultado.valorDia)} muted />
+                  <DesgRow label={`Tasa AFP aplicada`} value={pctFmt(resultado.tasaAfpAplicada)} muted />
+                </div>
+
+                {n(resultado.remUltimosDias) > 0 && (<>
+                  <DesgSeccion titulo="Remuneración últimos días" />
+                  <div className="divide-y divide-gray-100 text-sm">
+                    <DesgRow label="Líquido últimos días" value={fmtCLP(resultado.remUltimosDias)} />
                     <DesgRow label="· AFP descontado" value={fmtCLP(cotiz.afp ?? 0)} muted />
                     <DesgRow label="· Salud descontado" value={fmtCLP(cotiz.salud ?? 0)} muted />
                     <DesgRow label="· AFC descontado" value={fmtCLP(cotiz.afc ?? 0)} muted />
-                  </>)}
+                  </div>
+                </>)}
+
+                <DesgSeccion titulo="Feriado proporcional" />
+                <div className="divide-y divide-gray-100 text-sm">
                   {n(resultado.feriadoProporcionalDiasDescontados) > 0 ? (
                     <DesgRow
-                      label={`Feriado proporcional (${n(resultado.feriadoProporcionalDiasCalculados)} calc. − ${n(resultado.feriadoProporcionalDiasDescontados)} gozados = ${n(resultado.feriadoProporcionalDias)} días)`}
+                      label={`${n(resultado.feriadoProporcionalDiasCalculados)} días calc. − ${n(resultado.feriadoProporcionalDiasDescontados)} gozados = ${n(resultado.feriadoProporcionalDias)} días`}
                       value={fmtCLP(resultado.feriadoProporcionalMonto)}
                     />
                   ) : (
-                    <DesgRow label={`Feriado proporcional (${n(resultado.feriadoProporcionalDias)} días hábiles)`} value={fmtCLP(resultado.feriadoProporcionalMonto)} />
+                    <DesgRow label={`${n(resultado.feriadoProporcionalDias)} días hábiles a pagar`} value={fmtCLP(resultado.feriadoProporcionalMonto)} />
                   )}
-                  {n(resultado.indemnizacionAvisoPrevio) > 0 && (
-                    <DesgRow label="Indemnización aviso previo" value={fmtCLP(resultado.indemnizacionAvisoPrevio)} />
+                </div>
+
+                <DesgSeccion titulo="Indemnización y causal" />
+                <div className="divide-y divide-gray-100 text-sm">
+                  {n(resultado.montoPorAnoIndemnizacion) > 0 && (
+                    <DesgRow label="Monto por año (tope 90 UF)" value={fmtCLP(resultado.montoPorAnoIndemnizacion)} muted />
                   )}
                   {n(resultado.indemnizacionAnosServicio) > 0 && (
-                    <DesgRow label="Indemnización años de servicio" value={fmtCLP(resultado.indemnizacionAnosServicio)} />
+                    <DesgRow label={`Indemnización años de servicio (${n(resultado.anosServicio)} × monto por año)`} value={fmtCLP(resultado.indemnizacionAnosServicio)} />
+                  )}
+                  {n(resultado.indemnizacionAvisoPrevio) > 0 && (
+                    <DesgRow label="Mes de aviso sustitutivo" value={fmtCLP(resultado.indemnizacionAvisoPrevio)} />
+                  )}
+                  {n(resultado.montoRecargoArt168) > 0 && (
+                    <DesgRow label={`Recargo Art. 168 (${n(resultado.recargoArt168Porcentaje)}%)`} value={fmtCLP(resultado.montoRecargoArt168)} />
+                  )}
+                  {n(resultado.afcEmpleadorPendiente) > 0 && (
+                    <DesgRow label="AFC empleador pendiente" value={fmtCLP(resultado.afcEmpleadorPendiente)} />
                   )}
                   {n(resultado.asignacionFamiliar) > 0 && (
                     <DesgRow label="Asignación familiar (no cotizable)" value={fmtCLP(resultado.asignacionFamiliar)} />
                   )}
+                </div>
+
+                {n(resultado.montoHorasExtra) > 0 && (<>
+                  <DesgSeccion titulo="Horas extra" />
+                  <div className="divide-y divide-gray-100 text-sm">
+                    <DesgRow label="Valor hora extra" value={fmtCLP(resultado.valorHoraExtra)} muted />
+                    <DesgRow label="Monto horas extra" value={fmtCLP(resultado.montoHorasExtra)} />
+                  </div>
+                </>)}
+
+                <DesgSeccion titulo="Impuesto e ítems finales" />
+                <div className="divide-y divide-gray-100 text-sm">
                   {!!resultado.tributaImpuesto && (
                     <DesgRow label={`(-) Impuesto 2ª cat. (base ${fmtCLP(resultado.baseImpuesto)})`} value={`-${fmtCLP(resultado.impuestoRenta)}`} negative />
                   )}
@@ -217,6 +300,13 @@ export default async function AuditoriaCliente({ params }: { params: { id: strin
                   <DesgRow label="Total líquido (sin nulidad)" value={fmtCLP(resultado.totalLiquido)} bold />
                   <DesgRow label={`Nulidad del despido (${n(resultado.diasNulidad)} días)`} value={fmtCLP(resultado.montoNulidad)} />
                   <DesgRow label="TOTAL CON NULIDAD" value={fmtCLP(resultado.totalConNulidad)} bold highlight />
+                </div>
+
+                <DesgSeccion titulo="Valores legales vigentes usados en este cálculo" />
+                <div className="divide-y divide-gray-100 text-sm">
+                  <DesgRow label="IMM vigente" value={fmtCLP(resultado.immVigente)} muted />
+                  <DesgRow label="UF vigente" value={fmtCLP(resultado.ufVigente)} muted />
+                  <DesgRow label="UTM vigente" value={fmtCLP(resultado.utmVigente)} muted />
                 </div>
               </div>
             );
@@ -305,6 +395,14 @@ export default async function AuditoriaCliente({ params }: { params: { id: strin
       </div>
 
     </div>
+  );
+}
+
+function DesgSeccion({ titulo }: { titulo: string }) {
+  return (
+    <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide pt-4 pb-1 first:pt-0">
+      {titulo}
+    </p>
   );
 }
 

@@ -1,17 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 
-type Modo = "password" | "magic";
-
 export default function LoginPage() {
-  const router  = useRouter();
-  const [modo, setModo]         = useState<Modo>("magic");
   const [email, setEmail]       = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError]       = useState("");
   const [loading, setLoading]   = useState(false);
   const [enviado, setEnviado]   = useState(false);
@@ -21,47 +14,17 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
 
-    const supabase = createClient();
-
-    if (modo === "magic") {
-      const res = await fetch("/api/auth/magic-link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      setLoading(false);
-      if (!res.ok) {
-        setError("No pudimos enviar el enlace. Verifica tu correo e intenta de nuevo.");
-      } else {
-        setEnviado(true);
-      }
-      return;
-    }
-
-    // Modo contraseña (admins / abogados)
-    const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (authError) {
-      setError("Credenciales incorrectas. Verifica tu email y contraseña.");
-      setLoading(false);
-      return;
-    }
-
-    const userId = data.user?.id;
-    if (userId) {
-      const { data: perfil } = await supabase
-        .from("perfiles")
-        .select("role")
-        .eq("id", userId)
-        .single();
-
-      if (perfil?.role === "admin") router.push("/admin");
-      else if (perfil)              router.push("/abogados");
-      else                          router.push("/cliente");
+    const res = await fetch("/api/auth/magic-link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    setLoading(false);
+    if (!res.ok) {
+      setError("No pudimos enviar el enlace. Verifica tu correo e intenta de nuevo.");
     } else {
-      router.push("/cliente");
+      setEnviado(true);
     }
-    router.refresh();
   }
 
   return (
@@ -115,31 +78,7 @@ export default function LoginPage() {
             <>
               <div>
                 <h1 className="text-xl font-bold text-white">Acceder a mi cuenta</h1>
-                <p className="text-sm text-slate-400 mt-1">Portal para clientes y equipo profesional</p>
-              </div>
-
-              {/* Tabs */}
-              <div className="flex gap-1 bg-white/5 rounded-xl p-1">
-                <button
-                  onClick={() => { setModo("magic"); setError(""); }}
-                  className={`flex-1 text-xs py-2 rounded-lg font-medium transition-colors ${
-                    modo === "magic"
-                      ? "bg-blue-600 text-white shadow"
-                      : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  Enlace por email
-                </button>
-                <button
-                  onClick={() => { setModo("password"); setError(""); }}
-                  className={`flex-1 text-xs py-2 rounded-lg font-medium transition-colors ${
-                    modo === "password"
-                      ? "bg-blue-600 text-white shadow"
-                      : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  Con contraseña
-                </button>
+                <p className="text-sm text-slate-400 mt-1">Portal de clientes</p>
               </div>
 
               <form onSubmit={handleLogin} className="space-y-4">
@@ -158,28 +97,9 @@ export default function LoginPage() {
                   />
                 </div>
 
-                {modo === "password" && (
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide">
-                      Contraseña
-                    </label>
-                    <input
-                      type="password"
-                      autoComplete="current-password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                      placeholder="••••••••"
-                    />
-                  </div>
-                )}
-
-                {modo === "magic" && (
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    Te enviaremos un enlace directo a tu correo. Sin contraseña, sin complicaciones.
-                  </p>
-                )}
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Te enviaremos un enlace directo a tu correo. Sin contraseña, sin complicaciones.
+                </p>
 
                 {error && (
                   <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2.5">
@@ -192,11 +112,7 @@ export default function LoginPage() {
                   disabled={loading}
                   className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50 shadow-lg shadow-blue-900/30"
                 >
-                  {loading
-                    ? "Procesando..."
-                    : modo === "magic"
-                    ? "Enviar enlace de acceso →"
-                    : "Ingresar"}
+                  {loading ? "Procesando..." : "Enviar enlace de acceso →"}
                 </button>
               </form>
             </>

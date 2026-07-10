@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import LogoutButton from "@/components/LogoutButton";
+import SessionCountdown from "@/components/SessionCountdown";
 
 export default async function ClienteLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -14,16 +15,12 @@ export default async function ClienteLayout({ children }: { children: React.Reac
     .eq("auth_user_id", user.id)
     .single();
 
-  if (!cliente) {
-    const { data: perfil } = await supabase
-      .from("perfiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-    if (perfil?.role === "admin")    redirect("/admin");
-    else if (perfil)                 redirect("/abogados");
-    else                             redirect("/login");
-  }
+  // El portal de clientes es un módulo totalmente separado del de administración:
+  // se accede solo por enlace mágico y solo sirve a cuentas con fila en `clientes`.
+  // Nunca debe reenviar a /admin ni /abogados, aunque la cuenta autenticada también
+  // tenga un perfil de staff — esos módulos se acceden exclusivamente por su propio
+  // login con contraseña (/admin/login).
+  if (!cliente) redirect("/login");
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -49,7 +46,10 @@ export default async function ClienteLayout({ children }: { children: React.Reac
               </Link>
             </nav>
           </div>
-          <LogoutButton />
+          <div className="flex items-center gap-3">
+            <SessionCountdown />
+            <LogoutButton />
+          </div>
         </div>
       </header>
       <main className="max-w-2xl mx-auto px-4 py-6">

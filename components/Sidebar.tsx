@@ -15,8 +15,8 @@ const NAV_ABOGADO: NavItem[] = [
 
 const NAV_ADMIN: NavItem[] = [
   { href: "/admin", label: "Dashboard" },
-  { href: "/admin/clientes", label: "Todos los clientes" },
   { href: "/admin/calculos", label: "Cálculos" },
+  { href: "/admin/algoritmo", label: "Árbol del algoritmo" },
   { href: "/admin/abogados", label: "Equipo" },
   { href: "/abogados/clientes/nuevo", label: "Nuevo cliente" },
   { href: "/abogados/reuniones", label: "Reuniones" },

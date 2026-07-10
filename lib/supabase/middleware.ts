@@ -27,9 +27,10 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const path        = request.nextUrl.pathname;
-  const isProtected = path.startsWith("/abogados") || path.startsWith("/admin") || path.startsWith("/cliente");
-  const isLogin     = path === "/login";
+  const path         = request.nextUrl.pathname;
+  const isAdminLogin = path === "/admin/login";
+  const isProtected  = (path.startsWith("/abogados") || path.startsWith("/admin") || path.startsWith("/cliente")) && !isAdminLogin;
+  const isLogin      = path === "/login";
 
   let user = null;
   try {
@@ -40,10 +41,11 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // Sin sesión → rutas protegidas van al login
+  // Sin sesión → rutas protegidas van al login correspondiente
+  // (/admin/* usa login de usuario+contraseña, el resto usa el enlace por correo)
   if (!user && isProtected) {
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    url.pathname = path.startsWith("/admin") ? "/admin/login" : "/login";
     return NextResponse.redirect(url);
   }
 
@@ -63,6 +65,11 @@ export async function updateSession(request: NextRequest) {
     if (perfilRole !== null) {
       // Usuario staff (abogado o admin)
       // /login: dejamos pasar — el admin puede ver la página de acceso para clientes
+      if (isAdminLogin && perfilRole === "admin") {
+        const url = request.nextUrl.clone();
+        url.pathname = "/admin";
+        return NextResponse.redirect(url);
+      }
       if (path.startsWith("/admin") && perfilRole !== "admin") {
         const url = request.nextUrl.clone();
         url.pathname = "/abogados";

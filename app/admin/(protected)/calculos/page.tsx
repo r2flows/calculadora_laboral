@@ -1,16 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-
-const CAUSAL: Record<string, string> = {
-  art159_1:    "Mutuo acuerdo",
-  art159_2:    "Vencimiento plazo",
-  art159_3:    "Conclusión trabajo",
-  art159_5:    "Renuncia",
-  art160:      "Falta grave",
-  art161:      "Nec. empresa",
-  art161a:     "Desahucio",
-  autodespido: "Autodespido",
-};
+import { labelCausal } from "@/lib/calculos/causalesLegado";
+import EliminarClienteButton from "@/components/admin/EliminarClienteButton";
 
 function fmtCLP(v: unknown) {
   const n = Number(v);
@@ -88,7 +79,7 @@ export default async function ListaCalculos() {
                 {/* Causal */}
                 <td className="px-4 py-3 whitespace-nowrap text-gray-600">
                   {r
-                    ? (CAUSAL[String(inputs.causal)] ?? String(inputs.causal ?? "—"))
+                    ? labelCausal(inputs.causal)
                     : <span className="text-gray-300">—</span>
                   }
                 </td>
@@ -152,12 +143,15 @@ export default async function ListaCalculos() {
 
                 {/* Enlace */}
                 <td className="px-4 py-3 text-right">
-                  <Link
-                    href={`/admin/calculos/${c.id}`}
-                    className="text-xs text-blue-600 hover:underline whitespace-nowrap"
-                  >
-                    Ver auditoría →
-                  </Link>
+                  <div className="flex items-center justify-end gap-2">
+                    <Link
+                      href={`/admin/calculos/${c.id}`}
+                      className="text-xs text-blue-600 hover:underline whitespace-nowrap"
+                    >
+                      Ver auditoría →
+                    </Link>
+                    <EliminarClienteButton clienteId={c.id} nombre={c.nombre} />
+                  </div>
                 </td>
               </tr>
             ))}

@@ -58,7 +58,7 @@ export default async function AdminDashboard() {
       <div>
         <div className="flex justify-between items-center mb-3">
           <h2 className="font-semibold text-gray-700">Actividad reciente</h2>
-          <Link href="/admin/clientes" className="text-xs text-blue-600 hover:underline">
+          <Link href="/admin/calculos" className="text-xs text-blue-600 hover:underline">
             Ver todos →
           </Link>
         </div>
