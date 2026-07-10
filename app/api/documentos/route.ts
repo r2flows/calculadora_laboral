@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
   fetch(`${baseUrl}/api/documentos/${doc.id}/extraer`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ storagePath }),
+    body: JSON.stringify({ storagePath, tipo }),
   }).catch((err) => console.error("Error lanzando extracción:", err));
 
   return NextResponse.json({ ok: true, id: doc.id, estado: "pendiente" });
