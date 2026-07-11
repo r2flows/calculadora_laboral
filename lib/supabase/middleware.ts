@@ -83,7 +83,9 @@ export async function updateSession(request: NextRequest) {
           .from("clientes")
           .select("id")
           .eq("auth_user_id", user.id)
-          .single();
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
         if (!error && data) isPortalClient = true;
       } catch { /* columna no existe aún */ }
 
