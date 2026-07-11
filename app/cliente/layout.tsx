@@ -9,11 +9,16 @@ export default async function ClienteLayout({ children }: { children: React.Reac
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  // Una misma persona puede haber generado varias estimaciones (varias filas en
+  // clientes con el mismo auth_user_id) — tomamos la más reciente como la del
+  // portal en vez de .single(), que fallaría con más de una fila.
   const { data: cliente } = await supabase
     .from("clientes")
     .select("id, nombre")
     .eq("auth_user_id", user.id)
-    .single();
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   // El portal de clientes es un módulo totalmente separado del de administración:
   // se accede solo por enlace mágico y solo sirve a cuentas con fila en `clientes`.

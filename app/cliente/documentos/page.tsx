@@ -19,7 +19,9 @@ export default async function DocumentosCliente() {
     .from("clientes")
     .select("id")
     .eq("auth_user_id", user.id)
-    .single();
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   if (!cliente) redirect("/login");
 

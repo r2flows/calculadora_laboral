@@ -25,7 +25,9 @@ export default async function ClienteDashboard() {
     .from("clientes")
     .select("id, nombre, estado, resultado_total, created_at")
     .eq("auth_user_id", user.id)
-    .single();
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   if (!cliente) redirect("/login");
 
