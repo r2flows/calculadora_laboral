@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getSiteUrl } from "@/lib/site";
 import { createClient as createSupabasePublic } from "@supabase/supabase-js";
 import { Resend } from "resend";
 
 const FROM   = process.env.FROM_EMAIL ?? "onboarding@resend.dev";
-const SITE   = process.env.NEXT_PUBLIC_SITE_URL ?? "https://calculadoralaboral-three.vercel.app";
+const SITE   = getSiteUrl();
 
 interface DocumentoPendiente {
   tipo: string;

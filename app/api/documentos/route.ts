@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getSiteUrl } from "@/lib/site";
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Trigger extraction asynchronously — fire and forget
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const baseUrl = getSiteUrl();
   fetch(`${baseUrl}/api/documentos/${doc.id}/extraer`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

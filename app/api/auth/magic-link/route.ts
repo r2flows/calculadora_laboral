@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getSiteUrl } from "@/lib/site";
 import { Resend } from "resend";
 
 const FROM   = process.env.FROM_EMAIL ?? "portal@laboral.agentloop.cl";
-const SITE   = process.env.NEXT_PUBLIC_SITE_URL ?? "https://calculadoralaboral-three.vercel.app";
+const SITE   = getSiteUrl();
 
 export async function POST(req: NextRequest) {
   const { email } = await req.json();
